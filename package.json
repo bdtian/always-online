@@ -1,0 +1,12 @@
+{
+  "name": "always-online",
+  "version": "0.0.1",
+  "description": "realtime object sync",
+  "dependencies": {
+    "express": "^4.15.2",
+    "socket.io": "^2.1.1",
+    "log4js": "^2.8.0",
+    "redis": "^2.8.0",
+    "socket.io-redis": "^5.2.0"
+  }
+}
