@@ -174,7 +174,11 @@ var postAuthHandler = function(socket) {
       logger.info('join room success, roomId: %s', roomId);
       socket.emit('join', {status: 0});
       socket.to(roomId).emit('remoteJoin', {uid: socket.uid});
+
+      // TODO: send the user the rooms user that has already joined.
+      //socket.emit('remoteJoin', {uid: 1});
     });
+
   });
 
   socket.on('leave', function(msg) {
@@ -209,13 +213,13 @@ var postAuthHandler = function(socket) {
   });
 
   socket.on('disconnect', function() {
-    delete onlineUsers[socket.uid];
-    logger.info('disconnect: socket.id:', socket.id);
-
     // if the user has already join a room, broadcast to other users
     if (socket.rid) {
       socket.to(socket.rid).emit('remoteDisconnect', {uid: socket.uid});
     }
+
+    delete onlineUsers[socket.uid];
+    logger.info('disconnect: socket.id:', socket.id);
   });
 };
 

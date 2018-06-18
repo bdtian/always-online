@@ -14,15 +14,20 @@
     </style>
   </head>
   <body>
+<div action="">
+<input id="uid" autocomplete="off" /><button id='btn_uid'>Set Uid</button>
+</div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
+function socket_init(uid) {
     var socket = io();
     socket.on('connect', function() {
-      socket.emit('authenticate', {uid:'123456', token:'123456'});
+      socket.emit('authenticate', {uid: uid, token:'123456'});
     });
 
     socket.on('authenticate', function(msg) {
       if (msg.status == 0) {
+        console.log('auth success')
         socket.emit('join', {roomId: 1000})
       } else {
         console.log('auth failed')
@@ -31,7 +36,10 @@
 
     socket.on('join', function(msg) {
       if (msg.status == 0) {
+        console.log('join success');
         socket.emit('sync', {page: 0});
+      } else {
+        console.log('join failed');
       }
     });
 
@@ -48,11 +56,12 @@
     socket.on('kickout', function(msg) {
       console.log('kickout');
     });
+}
+document.getElementById('btn_uid').addEventListener('click', function(e) {
+  var uid = document.getElementById('uid').value;
+  socket_init(uid);
+})
 
 </script>
-<ul id="messages"></ul>
-    <form action="">
-      <input id="m" autocomplete="off" /><button>Send</button>
-    </form>
-  </body>
+</body>
 </html>
