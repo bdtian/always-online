@@ -81,20 +81,23 @@ var init = function() {
 // hook to connection message, and call auth handler.
 var authProcessor = function(io, auth, options, callback) {
   var timeout;
+
   if (typeof options === 'function') {
     callback = options;
     options = {};
   }
+
   options.timeout || (options.timeout = 1000);
+
   timeout = function(time, fn) {
     return setTimeout(fn, time);
   };
+
   return io.on('connection', function(socket) {
     var ip = socket.handshake.address;
-    logger.info('recv a connection from ip: ' + ip + ", socket.id: " + socket.id);
+    logger.info('recv a connection from ip: %s, socket.id: %s', ip, socket.id);
 
-    var disconnect;
-    disconnect = function(error) {
+    var disconnect = function(error) {
       if (error == null) {
         error = 'unauthorized';
       }
@@ -104,14 +107,17 @@ var authProcessor = function(io, auth, options, callback) {
       socket.emit('authenticate', {status: 1, data: error});
       return socket.disconnect();
     };
+
     timeout(options.timeout, function() {
       if (!socket.authenticated) {
         return disconnect('authentication timeout');
       }
     });
+
     socket.authenticated = false;
+
     return socket.on('authenticate', function(data) {
-      logger.debug('authenticate msg: ' + data);
+      logger.debug('authenticate msg: %s', data);
       return auth(socket, data, function(error) {
         if (error != null) {
           logger.warn('auth error');
@@ -138,7 +144,8 @@ var authHandler = function(socket, data, done) {
         socket.uid = uid;
         done();
       } else {
-        done(new Error('bad credentials'))
+        logger.warn('auth failed, uid=%s, token=%s', uid, token);
+        done(new Error('bad credentials'));
       }
   });
 };
@@ -153,7 +160,7 @@ var postAuthHandler = function(socket) {
 
   socket.on('join', function(msg){
 
-    logger.info('recv a join with msg: ' + msg);
+    logger.info('recv a join with msg: %s', msg);
 
     var roomId = msg.roomId;
     socket.rid = roomId;
@@ -164,7 +171,7 @@ var postAuthHandler = function(socket) {
     }
 
     socket.join(roomId, function() {
-      logger.info('join room success, roomId: ' + roomId);
+      logger.info('join room success, roomId: %s', roomId);
       socket.emit('join', {status: 0});
       socket.to(roomId).emit('remoteJoin', {uid: socket.uid});
     });
@@ -172,22 +179,35 @@ var postAuthHandler = function(socket) {
 
   socket.on('leave', function(msg) {
     socket.leave(socket.rid, function(msg) {
-      logger.info('leave room success, roomId: ' + roomId);
+      logger.info('leave room success, socket.id: %s, roomId: %s', socket.id, roomId);
     });
   });
 
   socket.on('msg', function(msg) {
-    logger.debug('recv a msg: ' + msg);
+    logger.debug('recv a msg, socket.id: %s, roomId: %s, msg: ', socket.id, socket.rid, msg);
+
+    redis.lpush(socket.rid, JSON.stringify({data: msg, ts:10000}));
     socket.to(socket.rid).emit('msg', msg);
   });
 
   socket.on('sync', function(msg) {
     // load datbase,
+    logger.info('recv sync request, socket.id: %s, roomId: %s' , socket.id, socket.rid);
+    var page = msg.page || 0;
+    redis.lrange(socket.rid, page * 200, (page + 1) * 200, function(err, res) {
+      var resp = [];
+      for(var d in res) {
+          var r = JSON.parse(resp);
+          resp.push(r.data);
+      }
+
+      socket.emit('sync', {data: resp, page: page})
+    });
   });
 
   socket.on('disconnect', function() {
     delete onlineUsers[socket.uid];
-    logger.info('disconnect: ' + socket.id);
+    logger.info('disconnect: socket.id:', socket.id);
   });
 };
 

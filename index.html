@@ -29,6 +29,12 @@
       }
     });
 
+    socket.on('join', function(msg) {
+      if (msg.status == 0) {
+        socket.emit('sync', {page: 0});
+      }
+    });
+
 </script>
 <ul id="messages"></ul>
     <form action="">
