@@ -35,6 +35,20 @@
       }
     });
 
+    socket.on('remoteJoin', function(msg) {
+      console.log('remote join uid:', msg.uid);
+    });
+
+
+    socket.on('remoteLeave', function(msg) {
+      console.log('remote leave uid:', msg.uid);
+    });
+
+
+    socket.on('kickout', function(msg) {
+      console.log('kickout');
+    });
+
 </script>
 <ul id="messages"></ul>
     <form action="">
