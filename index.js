@@ -220,7 +220,6 @@ var authHandler = function(socket, data, done) {
 
 var postAuthHandler = function(socket) {
   var uid = socket.uid;
-  var rid = socket.rid;
   var sid = socket.id;
 
   pub.publish('server-msg',JSON.stringify({
@@ -234,11 +233,7 @@ var postAuthHandler = function(socket) {
   kickout(uid, sid);
 
   // save user info and room in memory
-  onlineUsers[uid] = {socket: socket, roomId: rid};
-  if (!(rid in onlineRooms)) {
-    onlineRooms[rid] = {users: []}
-  }
-  onlineRooms[rid].users.push({uid: uid});
+  onlineUsers[uid] = {socket: socket};
 
   socket.on('join', function(msg){
 
@@ -254,6 +249,13 @@ var postAuthHandler = function(socket) {
 
     socket.join(roomId, function() {
       logger.info('join room success, uid: %s, roomId: %s, socketId: %s', uid, roomId, sid);
+
+      if (!(roomId in onlineRooms)) {
+        onlineRooms[roomId] = {users: []}
+      }
+      onlineRooms[roomId].users.push({uid: uid});
+      onlineUsers[uid].roomId = roomId;
+
       socket.emit('join', {status: 0});
       socket.to(roomId).emit('remoteJoin', {uid: socket.uid});
 
@@ -263,7 +265,7 @@ var postAuthHandler = function(socket) {
         cmd: 'query-room-users',
         data: {
           uid: uid,
-          rid: rid,
+          rid: roomId,
           serverId: currentServerId,
           sid: sid
         }
@@ -273,11 +275,14 @@ var postAuthHandler = function(socket) {
   });
 
   socket.on('leave', function(msg) {
-    socket.leave(socket.rid, function(msg) {
-      logger.info('leave room success, socket.id: %s, roomId: %s', socket.id, roomId);
-    });
+    if (socket.rid) {
+      socket.leave(socket.rid, function(msg) {
+        logger.info('leave room success, socket.id: %s, roomId: %s', socket.id, roomId);
+      });
 
-    socket.to(socket.rid).emit('remoteLeave', {uid: socket.uid});
+      socket.to(socket.rid).emit('remoteLeave', {uid: socket.uid});
+    }
+
     socket.disconnect(true);
   });
 
@@ -285,7 +290,7 @@ var postAuthHandler = function(socket) {
     logger.debug('recv a msg, socket.id: %s, roomId: %s, msg: ', socket.id, socket.rid, msg);
 
     var msgRoomKey = util.format("msg_%s", socket.rid);
-    var ts = int(Date.now() / 1000);
+    var ts = parseInt(Date.now() / 1000);
     redis.lpush(msgRoomKey, JSON.stringify({data: msg, ts: ts, uid: socket.uid}));
     socket.to(socket.rid).emit('msg', msg);
   });
@@ -298,12 +303,15 @@ var postAuthHandler = function(socket) {
 
     redis.lrange(msgRoomKey, page * 200, (page + 1) * 200, function(err, res) {
       var resp = [];
-      for(var d in res) {
-          var r = JSON.parse(resp);
-          resp.push(r.data);
+      for(var idx in res) {
+        var d = res[idx];
+        var r = JSON.parse(d);
+        resp.push(r.data);
       }
 
-      socket.emit('sync', {data: resp, page: page})
+      var content = {data: resp, page: page};
+      logger.debug('send sync resp: %s', JSON.stringify(content))
+      socket.emit('sync', content);
     });
   });
 
@@ -311,9 +319,22 @@ var postAuthHandler = function(socket) {
     // if the user has already join a room, broadcast to other users
     if (socket.rid) {
       socket.to(socket.rid).emit('remoteDisconnect', {uid: socket.uid});
+      if (socket.rid in onlineRooms) {
+        var roomUsers = onlineRooms[socket.rid].users;
+        for (var idx in roomUsers) {
+          if (roomUsers[idx].uid == socket.uid) {
+            roomUsers.splice(idx, 1);
+            if (roomUsers.length == 0) {
+              delete onlineRooms[socket.rid];
+            }
+            break;
+          }
+        }
+      }
     }
 
     delete onlineUsers[socket.uid];
+
     logger.info('disconnect: socket.id:', socket.id);
   });
 };

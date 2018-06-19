@@ -17,10 +17,14 @@
 <div action="">
 <input id="uid" autocomplete="off" /><button id='btn_uid'>Set Uid</button>
 </div>
+<div action="">
+<input id="message" autocomplete="off" /><button id='btn_msg'>Send Message</button>
+</div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
+var socket;
 function socket_init(uid) {
-    var socket = io({url: 'ws://localhost:3000/socket.io/?EIO=3&transport=websocket'});
+    socket = io({url: 'ws://localhost:3000/socket.io/?EIO=3&transport=websocket'});
     socket.on('connect', function() {
       socket.emit('authenticate', {uid: uid, token:'123456'});
     });
@@ -60,7 +64,12 @@ function socket_init(uid) {
 document.getElementById('btn_uid').addEventListener('click', function(e) {
   var uid = document.getElementById('uid').value;
   socket_init(uid);
-})
+});
+
+document.getElementById('btn_msg').addEventListener('click', function(e) {
+  var msg = document.getElementById('message').value;
+  socket.emit('msg', {data: msg})
+});
 
 </script>
 </body>
