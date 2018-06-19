@@ -6,6 +6,7 @@ var redisAdapter = require('socket.io-redis')
 
 var log4js = require('log4js');
 var redis = require('redis')
+var util = require('util')
 
 // init logger
 log4js.configure({
@@ -41,8 +42,27 @@ var redis = redisClient({ host: 'localhost', port: 6379 });
 
 
 var onlineUsers = {
-  //uid:{socket: socket}
+  //uid:{socket: socket, roomId:}
 };
+
+var onlineRooms = {
+  //rid: {users: [{uid:}]}
+};
+
+function getIPAdress(){
+    var interfaces = require('os').networkInterfaces();
+    for(var devName in interfaces){
+          var iface = interfaces[devName];
+          for(var i=0;i<iface.length;i++){
+               var alias = iface[i];
+               if(alias.family === 'IPv4' && alias.address !== '127.0.0.1' && !alias.internal){
+                     return alias.address;
+               }
+          }
+    }
+}
+
+var currentServerId = util.format('%s:%s', getIPAdress(), process.pid);
 
 var kickout = function(uid, sid) {
   if (uid in onlineUsers) {
@@ -65,15 +85,64 @@ var init = function() {
 
   io.adapter(adapter);
 
-  sub.subscribe('server-msg')
-  sub.on('message', function(err, resp) {
+  sub.subscribe('server-msg');
+
+  sub.on('message', function(channel, message) {
     // resp struct {'cmd': 'data':}
-    var data = JSON.parse(resp);
-    var cmd = data.cmd;
-    if (cmd == 'socket-connected') {
-      var uid = data.data.uid;
-      var sid = data.data.sid;
-      kickout(uid, sid);
+    if (channel == 'server-msg') {
+      logger.debug('server-msg: %s', message);
+      var data = JSON.parse(message);
+      var cmd = data.cmd;
+
+      if (cmd == 'socket-connected') {
+        var uid = data.data.uid;
+        var sid = data.data.sid;
+        kickout(uid, sid);
+      } else if (cmd == 'query-room-users') {
+        var fromServerId = data.data.serverId;
+        var fromUid = data.data.uid;
+        var fromRoomId = data.data.rid;
+        var fromSocketId = data.data.sid;
+
+        if (fromRoomId in onlineRooms) {
+          var content = JSON.stringify({
+            cmd: 'query-room-users-ack',
+            data: {
+              users: onlineRooms[fromRoomId].users,
+              serverId: fromServerId,
+              uid: fromUid,
+              rid: fromRoomId,
+              sid: fromSocketId
+            }
+          });
+
+          pub.publish('server-msg', content);
+        }
+
+      } else if (cmd == 'query-room-users-ack') {
+        var fromServerId = data.data.serverId;
+        var fromUid = data.data.uid;
+        var fromRoomId = data.data.rid;
+        var fromSocketId = data.data.sid;
+        var roomUsers = data.data.users;
+        var fromUser = null;
+        if (fromUid in onlineUsers) {
+          fromUser = onlineUsers[fromUid];
+        }
+        // make sure the socket does not change.
+        if (fromServerId == currentServerId
+          && fromUser != null
+          && fromUser.socket.id == fromSocketId
+          && fromUser.roomId == fromRoomId)
+        {
+          for(var idx in roomUsers) {
+            var user = roomUsers[idx];
+            if (user.uid != fromUid) {
+              fromUser.socket.emit('remoteJoin', {uid: user.uid});
+            }
+          }
+        }
+      }
     }
   });
 }
@@ -105,7 +174,7 @@ var authProcessor = function(io, auth, options, callback) {
         error = error.message;
       }
       socket.emit('authenticate', {status: 1, data: error});
-      return socket.disconnect();
+      return socket.disconnect(true);
     };
 
     timeout(options.timeout, function() {
@@ -117,7 +186,7 @@ var authProcessor = function(io, auth, options, callback) {
     socket.authenticated = false;
 
     return socket.on('authenticate', function(data) {
-      logger.debug('authenticate msg: %s', data);
+      logger.debug('authenticate msg: %s', JSON.stringify(data));
       return auth(socket, data, function(error) {
         if (error != null) {
           logger.warn('auth error');
@@ -139,7 +208,6 @@ var authHandler = function(socket, data, done) {
   var token = data.token;
   redis.get(uid, function(err, reply) {
       // reply is null when the key is missing
-      logger.debug(reply);
       if (reply == token) {
         socket.uid = uid;
         done();
@@ -152,31 +220,54 @@ var authHandler = function(socket, data, done) {
 
 var postAuthHandler = function(socket) {
   var uid = socket.uid;
+  var rid = socket.rid;
+  var sid = socket.id;
 
-  pub.publish('server-msg',  JSON.stringify({cmd:'socket-connected', data: {uid: uid, sid: socket.id}}));
-  kickout(uid, socket.id);
+  pub.publish('server-msg',JSON.stringify({
+    cmd:'socket-connected',
+    data: {
+      uid: uid,
+      sid: sid
+    }
+  }));
 
-  onlineUsers[uid] = {socket: socket};
+  kickout(uid, sid);
+
+  // save user info and room in memory
+  onlineUsers[uid] = {socket: socket, roomId: rid};
+  if (!(rid in onlineRooms)) {
+    onlineRooms[rid] = {users: []}
+  }
+  onlineRooms[rid].users.push({uid: uid});
 
   socket.on('join', function(msg){
 
-    logger.info('recv a join with msg: %s', msg);
+    logger.info('recv a join with msg: %s', JSON.stringify(msg));
 
     var roomId = msg.roomId;
     socket.rid = roomId;
 
     if (roomId === '' || roomId == 'undefined') {
-       socket.emit('join',{'status': 1});
+       socket.emit('join', {'status': 1});
        return;
     }
 
     socket.join(roomId, function() {
-      logger.info('join room success, roomId: %s', roomId);
+      logger.info('join room success, uid: %s, roomId: %s, socketId: %s', uid, roomId, sid);
       socket.emit('join', {status: 0});
       socket.to(roomId).emit('remoteJoin', {uid: socket.uid});
 
       // TODO: send the user the rooms user that has already joined.
       //socket.emit('remoteJoin', {uid: 1});
+      pub.publish('server-msg', JSON.stringify({
+        cmd: 'query-room-users',
+        data: {
+          uid: uid,
+          rid: rid,
+          serverId: currentServerId,
+          sid: sid
+        }
+      }));
     });
 
   });
@@ -187,13 +278,15 @@ var postAuthHandler = function(socket) {
     });
 
     socket.to(socket.rid).emit('remoteLeave', {uid: socket.uid});
-    socket.disconnect();
+    socket.disconnect(true);
   });
 
   socket.on('msg', function(msg) {
     logger.debug('recv a msg, socket.id: %s, roomId: %s, msg: ', socket.id, socket.rid, msg);
 
-    redis.lpush(socket.rid, JSON.stringify({data: msg, ts:10000}));
+    var msgRoomKey = util.format("msg_%s", socket.rid);
+    var ts = int(Date.now() / 1000);
+    redis.lpush(msgRoomKey, JSON.stringify({data: msg, ts: ts, uid: socket.uid}));
     socket.to(socket.rid).emit('msg', msg);
   });
 
@@ -201,7 +294,9 @@ var postAuthHandler = function(socket) {
     // load datbase,
     logger.info('recv sync request, socket.id: %s, roomId: %s' , socket.id, socket.rid);
     var page = msg.page || 0;
-    redis.lrange(socket.rid, page * 200, (page + 1) * 200, function(err, res) {
+    var msgRoomKey = util.format("msg_%s", socket.rid);
+
+    redis.lrange(msgRoomKey, page * 200, (page + 1) * 200, function(err, res) {
       var resp = [];
       for(var d in res) {
           var r = JSON.parse(resp);

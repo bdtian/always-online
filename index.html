@@ -20,7 +20,7 @@
 <script src="/socket.io/socket.io.js"></script>
 <script>
 function socket_init(uid) {
-    var socket = io();
+    var socket = io({url: 'ws://localhost:3000/socket.io/?EIO=3&transport=websocket'});
     socket.on('connect', function() {
       socket.emit('authenticate', {uid: uid, token:'123456'});
     });
