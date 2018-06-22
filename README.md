@@ -1,10 +1,10 @@
 # Always Online
-always online offers an realtime message sync service which is based on socket.io.
+Always online is an realtime message sync service which is based on [socket.io](https://github.com/socketio/socket.io).
 ## Feature
 * Realtime message sync, only support broadcast in room right now
-* Support message storage, which use redis as memory database
-* Support Android/iOS/Web/WeChat mini program, which is benifit from socket.io
-* Support cluster using redis sub/pub feature
+* Support message storage, using redis as memory database
+* Support Android/iOS/Web/WeChat mini program, which is benifit from socket.io open source project
+* Support cluster and horizontal scalability, using redis sub/pub feature
 
 ## Dependencies
 * socket.io
@@ -34,7 +34,23 @@ always online offers an realtime message sync service which is based on socket.i
 	set {uid} {token} //example: set 123456 123456
 	```
 
-## Client Side Protocols
+## Socket.io build in Message Protocol
+Please refer [socket io client](https://github.com/socketio/socket.io-client/blob/master/docs/API.md#new-managerurl-options)
+
+* connect
+* connect_error
+* connect_timeout
+* error
+* disconnect
+* reconnect
+* reconnect_attempt
+* reconnecting
+* reconnect_error
+* reconnect_failed
+* ping
+* pong
+
+## Custom Message Protocol
 * authenticate
 
 	```
@@ -45,7 +61,7 @@ always online offers an realtime message sync service which is based on socket.i
 	```
 	{roomId: 1000}
 	```
-* remoteJoin
+* remote_join
 
 	```
 	{uid: 1000}
@@ -53,19 +69,22 @@ always online offers an realtime message sync service which is based on socket.i
 * msg
 
 	```
-	{data: any data, type: xxx, tag: yyy}
+	{data: json-object, storage: 0|1|2, msgId: string or integer}
+	0: insert
+	1: update
+	2: ignore
 	```
 * leave
 
 	```
 	no data needed, just emit command
 	```
-* remoteLeave
+* remote_leave
 
 	```
 	{uid: 2000}
 	```
-* remoteDisconnect
+* remote_disconnect
 
 	```
 	{uid: 2000}
@@ -73,21 +92,32 @@ always online offers an realtime message sync service which is based on socket.i
 * sync
 
 	```
-	Request: {type: [xxx], tag: [yyyy], page: 0}
-	Response: {total:1000, pageSize:200, page: 1, data: []}
+	Request: {offset: 0}
+	Response: {next: 1, offset: 500, data: []}
+	next:
+		0: no data to get
+		1: has more data, need do sync with offset again until next is 0
+	```
+* remote_sync
+
+	```
+	{uid: 1000}
 	```
 
-Example [javascript]
+### Example (javascript):
 
 ```
-var socket = io();
+var socket = io('ws://localhost:3000');
 socket.on('connect', function() {
+  console.log('connect to server, and start auth');
   socket.emit('authenticate', {uid:'123456', token:'123456'});
 });
 
 socket.on('authenticate', function(msg) {
   if (msg.status == 0) {
-    socket.emit('join', {roomId: 1000})
+	var roomId = 1000;
+    console.log('auth success, and start join room: %d', roomId);
+    socket.emit('join', {roomId: roomId})
   } else {
     console.log('auth failed')
   }
@@ -95,19 +125,39 @@ socket.on('authenticate', function(msg) {
 
 socket.on('join', function(msg) {
   if (msg.status == 0) {
-    socket.emit('sync', {page: 0});
+	console.log('join success and start sync');
+	socket.emit('sync', {offset: 0});
+  } else {
+	console.log('join failed');
   }
 });
 
-socket.on('remoteJoin', function(msg) {
+socket.on('sync', function(msg) {
+	// handle msg
+	if (msg.next == 1) {
+		console.log('get more data, offset: %d', msg.offset);
+		socket.emit('sync', {offset: msg.offset});
+	} else {
+		console.log('sync data finish');
+	}
+});
+
+socket.on('remote_join', function(msg) {
   console.log('remote join uid:', msg.uid);
 });
 
-socket.on('remoteLeave', function(msg) {
+socket.on('remote_leave', function(msg) {
   console.log('remote leave uid:', msg.uid);
 });
 
 socket.on('kickout', function(msg) {
   console.log('kickout');
 });
+
+socket.on('disconnect', function(msg) {
+  console.log('disconnect');
+});
+
+......
+
 ```
