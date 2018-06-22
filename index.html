@@ -68,7 +68,7 @@ document.getElementById('btn_uid').addEventListener('click', function(e) {
 
 document.getElementById('btn_msg').addEventListener('click', function(e) {
   var msg = document.getElementById('message').value;
-  socket.emit('msg', {data: msg})
+  socket.emit('msg', {data: msg, storage: 1, msgId: 'touch_begin'});
 });
 
 </script>

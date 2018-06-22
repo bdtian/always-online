@@ -138,7 +138,7 @@ var init = function() {
           for(var idx in roomUsers) {
             var user = roomUsers[idx];
             if (user.uid != fromUid) {
-              fromUser.socket.emit('remoteJoin', {uid: user.uid});
+              fromUser.socket.emit('remote_join', {uid: user.uid});
             }
           }
         }
@@ -257,7 +257,7 @@ var postAuthHandler = function(socket) {
       onlineUsers[uid].roomId = roomId;
 
       socket.emit('join', {status: 0});
-      socket.to(roomId).emit('remoteJoin', {uid: socket.uid});
+      socket.to(roomId).emit('remote_join', {uid: socket.uid});
 
       // TODO: send the user the rooms user that has already joined.
       //socket.emit('remoteJoin', {uid: 1});
@@ -280,45 +280,104 @@ var postAuthHandler = function(socket) {
         logger.info('leave room success, socket.id: %s, roomId: %s', socket.id, roomId);
       });
 
-      socket.to(socket.rid).emit('remoteLeave', {uid: socket.uid});
+      socket.to(socket.rid).emit('remote_leave', {uid: socket.uid});
     }
 
     socket.disconnect(true);
   });
 
+  var msgStorageType = {
+    0: 'insert',
+    1: 'update',
+    2: 'ignore',
+  };
+
   socket.on('msg', function(msg) {
     logger.debug('recv a msg, socket.id: %s, roomId: %s, msg: ', socket.id, socket.rid, msg);
 
-    var msgRoomKey = util.format("msg_%s", socket.rid);
+    if (!(msg.storage in msgStorageType)) {
+      msg.storage = 0;
+    }
+
+    var msgId = msg.msgId;
+    var msgStorageTypeValue = msgStorageType[msg.storage];
+    var msgRoomKey = util.format('msg_%s_%s', socket.rid, msgStorageTypeValue);
+
     var ts = parseInt(Date.now() / 1000);
-    redis.lpush(msgRoomKey, JSON.stringify({data: msg, ts: ts, uid: socket.uid}));
+    var content = JSON.stringify({data: msg, ts: ts, uid: socket.uid});
+    if (msgStorageTypeValue == 'insert') {
+      // list insert
+      redis.lpush(msgRoomKey, content);
+    } else if (msgStorageTypeValue == 'update') {
+      // dict field update
+      redis.hset(msgRoomKey, msgId, content);
+      // backup update msg
+      redis.lpush(util.format('%s_backup', msgRoomKey), content);
+    } else if (msgStorageTypeValue == 'ignore') {
+      // backup ignore msg
+      redis.lpush(msgRoomKey, content);
+    }
     socket.to(socket.rid).emit('msg', msg);
   });
 
   socket.on('sync', function(msg) {
     // load datbase,
     logger.info('recv sync request, socket.id: %s, roomId: %s' , socket.id, socket.rid);
-    var page = msg.page || 0;
-    var msgRoomKey = util.format("msg_%s", socket.rid);
+    var offset = msg.offset || 0;
 
-    redis.lrange(msgRoomKey, page * 200, (page + 1) * 200, function(err, res) {
-      var resp = [];
+    var msgRoomKey = util.format('msg_%s_%s', socket.rid, 'insert');
+
+    if (msg.offset == 0) {
+      //if start sync, need notify other user, sync begin.
+      socket.to(socket.rid).emit('remote_sync', {uid: socket.uid});
+    }
+
+    var pageSize = 200;
+    var msgs = [];
+
+    redis.lrange(msgRoomKey, offset, offset + pageSize, function(err, res) {
+      res = res || [];
       for(var idx in res) {
-        var d = res[idx];
-        var r = JSON.parse(d);
-        resp.push(r.data);
+        var v = res[idx];
+        var r = JSON.parse(v);
+        msgs.push(r.data);
       }
 
-      var content = {data: resp, page: page};
-      logger.debug('send sync resp: %s', JSON.stringify(content))
-      socket.emit('sync', content);
+      //if no more insert msgs
+      if (msgs.length < pageSize) {
+        msgRoomKey = util.format('msg_%s_%s', socket.rid, 'update');
+
+        redis.hgetall(msgRoomKey, function(err, res) {
+          res = res || {};
+          for (var k in res) {
+            // var field = res[i];
+            var v = res[k];
+            try {
+              v = JSON.parse(v);
+            } catch(e) {
+              logger.warn(e);
+            }
+            msgs.push(v.data);
+          }
+
+          var content = {data: msgs, offset: offset + msgs.length, next: 0};
+          logger.debug('send sync resp finish: %s', JSON.stringify(content))
+          socket.emit('sync', content);
+
+        });
+      } else {
+        var content = {data: msgs, offset: offset + msgs.length, next: 1};
+        logger.debug('send sync resp: %s', JSON.stringify(content))
+        socket.emit('sync', content);
+      }
+
     });
   });
 
   socket.on('disconnect', function() {
     // if the user has already join a room, broadcast to other users
     if (socket.rid) {
-      socket.to(socket.rid).emit('remoteDisconnect', {uid: socket.uid});
+      socket.to(socket.rid).emit('remote_disconnect', {uid: socket.uid});
       if (socket.rid in onlineRooms) {
         var roomUsers = onlineRooms[socket.rid].users;
         for (var idx in roomUsers) {
