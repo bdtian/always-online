@@ -9,6 +9,7 @@ Always online is an realtime message sync service which is based on [socket.io](
 ## Dependencies
 * socket.io
 * redis
+* mongodb
 
 ## Usage
 * Install npm dependencies
@@ -17,21 +18,22 @@ Always online is an realtime message sync service which is based on [socket.io](
 	cd always-online
 	npm install
 	```
-* Install redis (Mac users)
+* Install redis/mongodb (Mac users)
 
 	```
 	brew install redis
+	brew install mongodb
 	```
-* Start redis server
+* Start redis/mongo server
 
 	```
 	redis-server
+	mongod --dbpath {path}
 	```
-* Put auth account at redis
+* Create Test Users
 
 	```
-	redis-cli
-	set {uid} {token} //example: set 123456 123456
+	post {uid: 1000} to http://{hostname}:3000/auth/create_token, token will be returned
 	```
 
 ## Socket.io build in Message Protocol
