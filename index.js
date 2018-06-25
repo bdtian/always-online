@@ -1,12 +1,19 @@
 var app = require('express')();
+var bodyParser = require('body-parser');
 var http = require('http').Server(app);
 
 var io = require('socket.io')(http);
-var redisAdapter = require('socket.io-redis')
+var redisAdapter = require('socket.io-redis');
 
 var log4js = require('log4js');
-var redis = require('redis')
-var util = require('util')
+var redis = require('redis');
+var util = require('util');
+var user = require('./database/db').user;
+
+const uuidv4 = require('uuid/v4');
+
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
 
 // init logger
 log4js.configure({
@@ -206,15 +213,30 @@ var authHandler = function(socket, data, done) {
   // check for valid credential data
   var uid = data.uid;
   var token = data.token;
-  redis.get(uid, function(err, reply) {
-      // reply is null when the key is missing
-      if (reply == token) {
+  // redis.get(uid, function(err, reply) {
+  //     // reply is null when the key is missing
+  //     if (reply == token) {
+  //       socket.uid = uid;
+  //       done();
+  //     } else {
+  //       logger.warn('auth failed, uid=%s, token=%s', uid, token);
+  //       done(new Error('bad credentials'));
+  //     }
+  // });
+  user.findOne({uid: uid, token: token}, function(err, ret) {
+    if (err) {
+        logger.warn('auth error, uid=%s, token=%s', uid, token);
+        done(new Error('server error'));
+    } else {
+      if (ret) {
+        logger.warn('auth success, uid=%s, token=%s', uid, token);
         socket.uid = uid;
         done();
       } else {
         logger.warn('auth failed, uid=%s, token=%s', uid, token);
-        done(new Error('bad credentials'));
+        done(new Error('auth failed'));
       }
+    }
   });
 };
 
@@ -411,5 +433,63 @@ var postAuthHandler = function(socket) {
   app.get('/', function(req, res) {
     res.sendFile(__dirname + '/index.html');
   });
+
+  app.post('/user/create_token', function(req, res) {
+    var accountInfo = req.body;
+    if (accountInfo && accountInfo.uid) {
+      user.findOne({uid: accountInfo.uid}, function(err, ret) {
+        if (err) {
+          logger.error('auth/create_token query failed: %s', err);
+          res.send({status: 3, msg: 'server error', uid: accountInfo.uid});
+        } else {
+          if (ret) {
+            res.send({status: 1, msg: 'user exists', uid: accountInfo.uid});
+          } else {
+            var random_token = uuidv4();
+            logger.info("token:" + random_token);
+            user.create({uid: accountInfo.uid, token: random_token}, function(err) {
+              if (err) {
+                res.send({status: 2, msg: 'create_token failed', uid: accountInfo.uid});
+              } else {
+                res.send({status: 0, uid: accountInfo.uid, token: random_token});
+              }
+            });
+          }
+        }
+      });
+    } else {
+      res.send({status: 4, msg: 'params error'});
+    }
+  });
+
+  app.post('/user/refresh_token', function(req, res) {
+    var accountInfo = req.body;
+    logger.info(accountInfo);
+    if (accountInfo && accountInfo.uid) {
+      user.findOne({uid: accountInfo.uid}, function(err, ret) {
+        if (err) {
+          logger.error('auth/refresh_token query failed: %s', err);
+          res.send({status: 3, msg: 'server error', uid: accountInfo.uid});
+        } else {
+          if (ret) {
+            var random_token = uuidv4();
+            user.update({uid: accountInfo.uid}, {$set: {token: random_token}}, function(err) {
+              if (err) {
+                res.send({status: 2, msg: 'refresh_token failed', uid: accountInfo.uid});
+              } else {
+                res.send({status: 0, uid: accountInfo.uid, token: random_token});
+              }
+            });
+          } else {
+            res.send({status: 1, msg: 'user not exists', uid: accountInfo.uid});
+          }
+        }
+      });
+    } else {
+      res.send({status: 4, msg: 'params error'});
+    }
+
+  });
+
 
 })();

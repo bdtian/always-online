@@ -14,19 +14,28 @@
     </style>
   </head>
   <body>
-<div action="">
-<input id="uid" autocomplete="off" /><button id='btn_uid'>Set Uid</button>
+<div>
+Uid:
+<input id="uid" autocomplete="off" />
 </div>
+<div>
+Token:
+<input id="token" autocomplete="off" />
+</div>
+<div>
+<button id='btn_login'>Login</button>
+</div>
+
 <div action="">
 <input id="message" autocomplete="off" /><button id='btn_msg'>Send Message</button>
 </div>
 <script src="/socket.io/socket.io.js"></script>
 <script>
 var socket;
-function socket_init(uid) {
+function socket_init(uid, token) {
     socket = io({url: 'ws://localhost:3000/socket.io/?EIO=3&transport=websocket'});
     socket.on('connect', function() {
-      socket.emit('authenticate', {uid: uid, token:'123456'});
+      socket.emit('authenticate', {uid: uid, token: token});
     });
 
     socket.on('authenticate', function(msg) {
@@ -61,9 +70,10 @@ function socket_init(uid) {
       console.log('kickout');
     });
 }
-document.getElementById('btn_uid').addEventListener('click', function(e) {
+document.getElementById('btn_login').addEventListener('click', function(e) {
   var uid = document.getElementById('uid').value;
-  socket_init(uid);
+  var token = document.getElementById('token').value;
+  socket_init(uid, token);
 });
 
 document.getElementById('btn_msg').addEventListener('click', function(e) {
