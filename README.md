@@ -33,7 +33,7 @@ Always online is an realtime message sync service which is based on [socket.io](
 * Create Test Users
 
 	```
-	post {uid: 1000} to http://{hostname}:3000/auth/create_token, token will be returned
+	post {uid: 1000} to http://{hostname}:3000/user/create_token, token will be returned
 	```
 
 ## Socket.io build in Message Protocol

@@ -29,11 +29,11 @@ Token:
 <div action="">
 <input id="message" autocomplete="off" /><button id='btn_msg'>Send Message</button>
 </div>
-<script src="/socket.io/socket.io.js"></script>
+<script src="http://localhost:3000/socket.io/socket.io.js"></script>
 <script>
 var socket;
 function socket_init(uid, token) {
-    socket = io({url: 'ws://localhost:3000/socket.io/?EIO=3&transport=websocket'});
+    socket = io.connect('ws://localhost:3000?transport=websocket');
     socket.on('connect', function() {
       socket.emit('authenticate', {uid: uid, token: token});
     });
