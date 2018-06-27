@@ -35,6 +35,57 @@ Always online is an realtime message sync service which is based on [socket.io](
 	```
 	post {uid: 1000} to http://{hostname}:3000/user/create_token, token will be returned
 	```
+* Start Server
+
+	```
+	cd always-online
+	node index.js all
+	```
+
+## Rest API for account
+Need called from business server to register account for security.
+
+Status Code:
+
+```
+var errMsg = {
+  0: 'success',
+  1: 'user exists',
+  2: 'operation failed',
+  3: 'server error',
+  4: 'param error',
+  5: 'user not exists'
+};
+
+```
+### create_token
+
+```
+http://{hostname}:4000/user/create_token
+
+Method: POST
+
+Request:
+{uid: '1000'}
+
+Response:
+{status: 0, uid: '1000', token: 'xxxxxx'}
+
+```
+### refresh_token
+
+```
+http://{hostname}:4000/user/refresh_token
+
+Method: POST
+
+Request:
+{uid: '1000'}
+
+Response:
+{status: 0, uid: '1000', token: 'xxxxxx'}
+
+```
 
 ## Socket.io build in Message Protocol
 Please refer [socket io client](https://github.com/socketio/socket.io-client/blob/master/docs/API.md#new-managerurl-options)
@@ -53,15 +104,27 @@ Please refer [socket io client](https://github.com/socketio/socket.io-client/blo
 * pong
 
 ## Custom Message Protocol
+Status Code
+
+```
+0: success, other: failed
+```
+
 * authenticate
 
 	```
+	Request:
 	{uid: 1000, token: xxxx}
+	Response:
+	{status: 0, data: 'auth success'}
 	```
 * join
 
 	```
+	Request:
 	{roomId: 1000}
+	Response:
+	{status: 0, data: 'xxxx'}
 	```
 * remote_join
 

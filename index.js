@@ -1,9 +1,10 @@
 var logger = require('./utils/logger')('always-online-app');
 
-logger.info('\n***************************************************',
-'\nrun always-online:',
-'\nnode index.js option, option can be: websocket|api|test|all, default is websocket',
-'\n***************************************************'
+logger.info(
+  '\n***************************************************',
+  '\nrun always-online:',
+  '\nnode index.js option, option can be: websocket|api|test|all, default is websocket',
+  '\n***************************************************'
 );
 
 var arguments = process.argv.splice(2);
@@ -13,11 +14,11 @@ if (arguments.length == 0) {
 var serviceName = arguments[0];
 logger.info('start service:', serviceName);
 
-function uncaughtExceptionHandler(err){
+function uncaughtExceptionHandler(err) {
   logger.error(err);
-  if(err && err.code == 'ECONNREFUSED'){
+  if(err && err.code == 'ECONNREFUSED') {
     logger.error('service exit');
-  }else{
+  } else {
     logger.error('service exit');
     process.exit(1);
   }

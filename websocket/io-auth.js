@@ -43,7 +43,7 @@ module.exports.registerAuthProcessor = function(io, authhandler, options, callba
           return disconnect(error);
         } else {
           socket.authenticated = true;
-          socket.emit('authenticate', {status: 0});
+          socket.emit('authenticate', {status: 0, data: 'auth success'});
           return callback(socket);
         }
       });

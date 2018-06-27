@@ -32,7 +32,7 @@ redisClient.on("error", function (err) {
 
 
 var onlineUsers = {
-  //uid:{socket: socket, roomId:}
+  //uid:{socket: socket}
 };
 
 var onlineRooms = {
@@ -43,7 +43,7 @@ var authHandler = function(socket, data, done) {
   // check for valid credential data
   var uid = data.uid;
   var token = data.token;
-  if (process.env.NODE_ENV==='development') {
+  if (process.env.NODE_ENV === 'development') {
     logger.info('[development env] ignore auth, uid=%s, token=%s', uid, token);
     socket.uid = uid;
     done();
@@ -59,7 +59,7 @@ var authHandler = function(socket, data, done) {
           done();
         } else {
           logger.warn('auth failed, uid=%s, token=%s', uid, token);
-          done(new Error('auth failed'));
+          done(new Error('auth failed, uid or token is wrong'));
         }
       }
     });
@@ -93,7 +93,7 @@ var postAuthHandler = function(socket) {
     socket.rid = roomId;
 
     if (roomId === '' || roomId == 'undefined') {
-       socket.emit('join', {'status': 1});
+       socket.emit('join', {'status': 1, data: 'join failed, require roomId'});
        return;
     }
 
@@ -105,7 +105,7 @@ var postAuthHandler = function(socket) {
       }
       onlineRooms[roomId].users.push({uid: uid});
 
-      socket.emit('join', {status: 0});
+      socket.emit('join', {status: 0, data: 'join success'});
       socket.to(roomId).emit('remote_join', {uid: socket.uid});
     });
 
@@ -197,13 +197,23 @@ var postAuthHandler = function(socket) {
             msgs.push(v.data);
           }
 
-          var content = {data: msgs, offset: offset + msgs.length, next: 0};
+          var content = {
+            data: msgs,
+            offset: offset + msgs.length,
+            next: 0
+          };
+
           logger.debug('send sync resp finish: %s', JSON.stringify(content))
           socket.emit('sync', content);
 
         });
       } else {
-        var content = {data: msgs, offset: offset + msgs.length, next: 1};
+        var content = {
+          data: msgs,
+          offset: offset + msgs.length,
+          next: 1
+        };
+
         logger.debug('send sync resp: %s', JSON.stringify(content))
         socket.emit('sync', content);
       }
@@ -215,6 +225,8 @@ var postAuthHandler = function(socket) {
     // if the user has already join a room, broadcast to other users
     if (socket.rid) {
       socket.to(socket.rid).emit('remote_disconnect', {uid: socket.uid});
+
+      // remove user in online rooms.
       if (socket.rid in onlineRooms) {
         var roomUsers = onlineRooms[socket.rid].users;
         for (var idx in roomUsers) {
@@ -229,12 +241,12 @@ var postAuthHandler = function(socket) {
       }
     }
 
+    // remove user in online user.
     delete onlineUsers[socket.uid];
 
     logger.info('disconnect: socket.id:', socket.id);
   });
 };
-
 
 // main
 (function main() {
