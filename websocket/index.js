@@ -116,6 +116,7 @@ var postAuthHandler = function(socket) {
   });
 
   socket.on('msg', function(msg) {
+    msg.uid = socket.uid;
     logger.debug('recv a msg, socket.id: %s, roomId: %s, msg: ', socket.id, socket.rid, msg);
     model.saveRoomMessage(socket.rid, socket.uid, msg);
     socket.to(socket.rid).emit('msg', msg);
