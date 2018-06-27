@@ -28,7 +28,7 @@ var authHandler = function(socket, data, done) {
   } else {
     db.user.findOne({uid: uid, token: token}, function(err, ret) {
       if (err) {
-          logger.warn('auth error, uid: %s, token: %s', uid, token);
+          logger.warn('auth error, uid: %s, token: %s, err: ', uid, token, err);
           done(new Error('server error'));
       } else {
         if (ret) {
@@ -69,7 +69,7 @@ var postAuthHandler = function(socket) {
   onlineUsers[uid] = {socket: socket};
 
   socket.on('join', function(msg){
-    logger.info('recv a join with msg: %s', JSON.stringify(msg));
+    logger.info('recv a join with msg: ', msg);
 
     var roomId = msg.roomId;
     socket.rid = roomId;
@@ -106,7 +106,12 @@ var postAuthHandler = function(socket) {
   socket.on('leave', function(msg) {
     if (socket.rid) {
       socket.leave(socket.rid, function(msg) {
-        logger.info('leave room success, uid: %s, roomId: %s, socket.id: %s', socket.uid, socket.rid, socket.id);
+        logger.info(
+          'leave room success, uid: %s, roomId: %s, socket.id: %s',
+          socket.uid,
+          socket.rid,
+          socket.id
+        );
       });
 
       socket.to(socket.rid).emit('remote_leave', {uid: socket.uid});
@@ -117,14 +122,25 @@ var postAuthHandler = function(socket) {
 
   socket.on('msg', function(msg) {
     msg.uid = socket.uid;
-    logger.debug('recv a msg, uid: %s, socket.id: %s, roomId: %s, msg: ', socket.uid, socket.id, socket.rid, msg);
+    logger.debug(
+      'recv a msg, uid: %s, socket.id: %s, roomId: %s, msg: ',
+      socket.uid,
+      socket.id,
+      socket.rid,
+      msg
+    );
     model.saveRoomMessage(socket.rid, socket.uid, msg);
     socket.to(socket.rid).emit('msg', msg);
   });
 
   socket.on('sync', function(msg) {
     // load datbase,
-    logger.info('recv sync request, socket.id: %s, roomId: %s' , socket.id, socket.rid);
+    logger.info(
+      'recv sync request, uid: %s, socket.id: %s, roomId: %s',
+      socket.uid,
+      socket.id,
+      socket.rid
+    );
     var offset = msg.offset || 0;
 
     if (msg.offset == 0) {
@@ -133,7 +149,12 @@ var postAuthHandler = function(socket) {
     }
 
     model.getRoomMessage(socket.rid, offset, function(content) {
-      logger.debug('send sync resp, msg size: %d bytes, msg number: %d', JSON.stringify(content).length, content.data.length);
+      logger.debug(
+        'send sync resp to uid: %s, msg size: %d bytes, msg number: %d',
+        socket.uid,
+        JSON.stringify(content).length,
+        content.data.length
+      );
       socket.emit('sync', content);
     });
   });
@@ -161,7 +182,12 @@ var postAuthHandler = function(socket) {
     // remove user in online user.
     delete onlineUsers[socket.uid];
 
-    logger.info('disconnect: uid: %s, roomId: %s, socket.id: %s', socket.uid, socket.rid, socket.id);
+    logger.info(
+      'disconnect: uid: %s, roomId: %s, socket.id: %s',
+      socket.uid,
+      socket.rid,
+      socket.id
+    );
   });
 };
 
@@ -225,7 +251,11 @@ var postAuthHandler = function(socket) {
     var offset = req.query['offset'] || 0;
     if (roomId && roomId != '') {
       model.getRoomMessage(roomId, offset, true, function(msgs) {
-        logger.debug('monitor server room, msg size: %d bytes, msg number: %d', JSON.stringify(msgs).length, msgs.data.length);
+        logger.debug(
+          'monitor server room, msg size: %d bytes, msg number: %d',
+          JSON.stringify(msgs).length,
+          msgs.data.length
+        );
         res.send({status: 0, data: msgs});
       });
 
