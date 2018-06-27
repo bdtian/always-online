@@ -50,7 +50,7 @@ function socket_init(uid, token) {
     socket.on('join', function(msg) {
       if (msg.status == 0) {
         console.log('join success');
-        socket.emit('sync', {page: 0});
+        socket.emit('sync', {offset: 0});
       } else {
         console.log('join failed');
       }

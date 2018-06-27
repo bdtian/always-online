@@ -22,21 +22,21 @@ var authHandler = function(socket, data, done) {
   var uid = data.uid;
   var token = data.token;
   if (process.env.NODE_ENV === 'development') {
-    logger.info('[development env] ignore auth, uid=%s, token=%s', uid, token);
+    logger.info('[development env] ignore auth, uid: %s, token: %s', uid, token);
     socket.uid = uid;
     done();
   } else {
     db.user.findOne({uid: uid, token: token}, function(err, ret) {
       if (err) {
-          logger.warn('auth error, uid=%s, token=%s', uid, token);
+          logger.warn('auth error, uid: %s, token: %s', uid, token);
           done(new Error('server error'));
       } else {
         if (ret) {
-          logger.info('auth success, uid=%s, token=%s', uid, token);
+          logger.info('auth success, uid: %s, token: %s', uid, token);
           socket.uid = uid;
           done();
         } else {
-          logger.warn('auth failed, uid=%s, token=%s', uid, token);
+          logger.warn('auth failed, uid: %s, token: %s', uid, token);
           done(new Error('auth failed, uid or token is wrong'));
         }
       }
@@ -48,7 +48,7 @@ var kickout = function(uid, sid) {
   if (uid in onlineUsers) {
     var socket = onlineUsers[uid].socket;
     if (socket.id != sid) {
-      logger.warn("kickout, uid:%s, socket.id: %s", uid, socket.id);
+      logger.warn("kickout, uid: %s, socket.id: %s", uid, socket.id);
       socket.emit('kickout', 0);
       socket.disconnect();
      }
@@ -63,7 +63,7 @@ var postAuthHandler = function(socket) {
 
   // save user info and room in memory
   if (uid in onlineUsers) {
-    logger.warn('user should not in onlineUsers, uid:%d', uid);
+    logger.warn('user should not in onlineUsers, uid: %d', uid);
   }
 
   onlineUsers[uid] = {socket: socket};
@@ -106,7 +106,7 @@ var postAuthHandler = function(socket) {
   socket.on('leave', function(msg) {
     if (socket.rid) {
       socket.leave(socket.rid, function(msg) {
-        logger.info('leave room success, socket.id: %s, socket.rid: %s', socket.id, socket.rid);
+        logger.info('leave room success, uid: %s, roomId: %s, socket.id: %s', socket.uid, socket.rid, socket.id);
       });
 
       socket.to(socket.rid).emit('remote_leave', {uid: socket.uid});
@@ -117,7 +117,7 @@ var postAuthHandler = function(socket) {
 
   socket.on('msg', function(msg) {
     msg.uid = socket.uid;
-    logger.debug('recv a msg, socket.id: %s, roomId: %s, msg: ', socket.id, socket.rid, msg);
+    logger.debug('recv a msg, uid: %s, socket.id: %s, roomId: %s, msg: ', socket.uid, socket.id, socket.rid, msg);
     model.saveRoomMessage(socket.rid, socket.uid, msg);
     socket.to(socket.rid).emit('msg', msg);
   });
@@ -161,7 +161,7 @@ var postAuthHandler = function(socket) {
     // remove user in online user.
     delete onlineUsers[socket.uid];
 
-    logger.info('disconnect: socket.id:', socket.id);
+    logger.info('disconnect: uid: %s, roomId: %s, socket.id: %s', socket.uid, socket.rid, socket.id);
   });
 };
 
@@ -203,7 +203,7 @@ var postAuthHandler = function(socket) {
   
     logger.info('monitor server stat:', JSON.stringify(stat));
 
-    res.send({status: 0, data: stat});  
+    res.send({status: 0, data: stat});
   });
 
   app.get('/admin/monitor/room_users', function(req, res) {
