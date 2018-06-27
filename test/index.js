@@ -1,7 +1,10 @@
-var app = require('express')();
+var express = require('express'); 
+var app = express();
 var logger = require('../utils/logger')('always-online-test');
 
-app.get('/', function(req, res) {
+app.use(express.static(__dirname + '/whiteboard'));
+
+app.get('/test', function(req, res) {
   res.sendFile(__dirname + '/index.html');
 });
 

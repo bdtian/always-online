@@ -27,7 +27,6 @@ var authHandler = function(socket, data, done) {
     done();
   } else {
     db.user.findOne({uid: uid, token: token}, function(err, ret) {
-      console.log(err, ret);
       if (err) {
           logger.warn('auth error, uid=%s, token=%s', uid, token);
           done(new Error('server error'));
