@@ -122,7 +122,7 @@ var postAuthHandler = function(socket) {
     }
 
     model.getRoomMessage(socket.rid, offset, function(content) {
-      logger.debug('send sync resp: %s', JSON.stringify(content))
+      logger.debug('send sync resp, msg size: %d bytes, msg number: %d', JSON.stringify(content).length, content.data.length);
       socket.emit('sync', content);
     });
   });
@@ -161,7 +161,6 @@ var postAuthHandler = function(socket) {
   app.use('/admin/monitor/', function(req, res, next) {
     var uid = req.query['uid'];
     var token = req.query['token'];
-    console.log(req.query, uid, token);
     if (uid && token) {
       db.admin.findOne({uid: uid}, function(err, ret) {
         if (!err && ret && ret.token == token) {
@@ -215,7 +214,7 @@ var postAuthHandler = function(socket) {
     var offset = req.query['offset'] || 0;
     if (roomId && roomId != '') {
       model.getRoomMessage(roomId, offset, true, function(msgs) {
-        logger.debug('monitor server room: %s', JSON.stringify(msgs))
+        logger.debug('monitor server room, msg size: %d bytes, msg number: %d', JSON.stringify(msgs).length, msgs.data.length);
         res.send({status: 0, data: msgs});
       });
 

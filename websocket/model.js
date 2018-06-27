@@ -41,7 +41,7 @@ var getRoomMessage = function(roomId, offset, detail, callback) {
   var pageSize = 200;
   var msgs = [];
 
-  redisClient.lrange(msgRoomKey, offset, offset + pageSize, function(err, res) {
+  redisClient.lrange(msgRoomKey, offset, offset + pageSize - 1, function(err, res) {
     res = res || [];
     for(var idx in res) {
       var v = res[idx];
