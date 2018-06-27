@@ -89,6 +89,15 @@ var postAuthHandler = function(socket) {
 
       socket.emit('join', {status: 0, data: 'join success'});
       socket.to(roomId).emit('remote_join', {uid: socket.uid});
+
+      //send other users
+      var roomUsers = onlineRooms[roomId].users;
+      for (var idx in roomUsers) {
+        var roomUser = roomUsers[idx];
+        if (roomUser.uid != socket.uid) {
+          socket.emit('remote_join', {uid: roomUser.uid});
+        }
+      }
     });
 
   });
