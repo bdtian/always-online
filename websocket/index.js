@@ -95,6 +95,7 @@ var postAuthHandler = function(socket) {
       for (var idx in roomUsers) {
         var roomUser = roomUsers[idx];
         if (roomUser.uid != socket.uid) {
+          logger.info('send to uid: %s, remote_join, uid: %s', socket.uid, roomUser.uid);
           socket.emit('remote_join', {uid: roomUser.uid});
         }
       }
