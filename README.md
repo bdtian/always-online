@@ -226,3 +226,51 @@ socket.on('disconnect', function(msg) {
 ......
 
 ```
+
+## Monitor API
+use those api to debug
+
+### stat
+
+```
+http://{hostname}:3000/admin/monitor/stat?uid=xxx&token=xxx
+
+Method: GET
+
+Request:
+uid: xxx
+token: xxxx
+
+Response:
+{status: 0, data: {online_user_count: 2, online_room_count: 1}}
+```
+### room_users
+
+```
+http://{hostname}:3000/admin/monitor/room_users?roomId=xxx&uid=xxx&token=xxx
+
+Method: GET
+
+Request:
+uid: xxx
+token: xxxx
+roomId: xxxx
+
+Response:
+{status: 0, data: [{uid: xxx}, {uid: xxx}]}
+```
+### room_msgs
+
+```
+http://{hostname}:3000/admin/monitor/room_msgs?roomId=xxx&uid=xxx&token=xxx
+
+Method: GET
+
+Request:
+uid: xxx
+token: xxxx
+roomId: xxxx
+
+Response:
+{"status":0,"data":{"data":[{"data":{"data":"4444","storage":1,"msgId":"touch_begin"},"ts":1530009108,"uid":"4000"}],"offset":1,"next":0}}
+```

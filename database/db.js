@@ -10,9 +10,8 @@ const options = {
   bufferMaxEntries: 0
 };
 
-var db = mongoose.createConnection('mongodb://localhost/account', options)
-
-.on('error', function(err) {
+var db = mongoose.createConnection('mongodb://localhost/account', options).on('error', 
+function(err) {
 	logger.error('mongodb error:', err);
 }).once('open', function() {
 	logger.info('mongodb opened');
@@ -32,4 +31,10 @@ var userSchema = new Schema({
 	token: String
 });
 
+var adminSchema = new Schema({
+	uid: String,
+	token: String
+});
+
 exports.user = db.model('user', userSchema);
+exports.admin = db.model('admin', adminSchema);

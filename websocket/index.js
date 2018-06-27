@@ -1,35 +1,13 @@
-var http = require('http').Server();
+var app = require('express')();
+var http = require('http').Server(app);
 var io = require('socket.io')(http);
-var redis = require('redis');
 var util = require('util');
-var user = require('../database/db').user;
+var db = require('../database/db');
+var model = require('./model');
 var logger = require('../utils/logger')('always-online-websocket');
 io.logger = logger;
 
 var auth = require('./io-auth');
-// used for msg storage.
-var redisClient = redis.createClient({ 
-  host: 'localhost', 
-  port: 6379,
-  retry_strategy: function (options) {
-    if (options.error.code === 'ECONNREFUSED') {
-        // End reconnecting on a specific error and flush all commands with a individual error 
-        logger.error('refuse connect, retry', options.attempt);
-    }
-
-    if (options.times_connected > 10) {
-        logger.error('retry connect more than 10 times');        
-    }
-
-    // reconnect after 
-    return Math.max(options.attempt * 100, 3000);
-  } 
-});
-
-redisClient.on("error", function (err) {
-  logger.error('redis error ', err);
-});
-
 
 var onlineUsers = {
   //uid:{socket: socket}
@@ -48,7 +26,8 @@ var authHandler = function(socket, data, done) {
     socket.uid = uid;
     done();
   } else {
-    user.findOne({uid: uid, token: token}, function(err, ret) {
+    db.user.findOne({uid: uid, token: token}, function(err, ret) {
+      console.log(err, ret);
       if (err) {
           logger.warn('auth error, uid=%s, token=%s', uid, token);
           done(new Error('server error'));
@@ -70,7 +49,7 @@ var kickout = function(uid, sid) {
   if (uid in onlineUsers) {
     var socket = onlineUsers[uid].socket;
     if (socket.id != sid) {
-      logger.warn("kickout: " + socket.id);
+      logger.warn("kickout, uid:%s, socket.id: %s", uid, socket.id);
       socket.emit('kickout', 0);
       socket.disconnect();
      }
@@ -84,6 +63,10 @@ var postAuthHandler = function(socket) {
   kickout(uid, sid);
 
   // save user info and room in memory
+  if (uid in onlineUsers) {
+    logger.warn('user should not in onlineUsers, uid:%d', uid);
+  }
+
   onlineUsers[uid] = {socket: socket};
 
   socket.on('join', function(msg){
@@ -123,38 +106,9 @@ var postAuthHandler = function(socket) {
     socket.disconnect(true);
   });
 
-  var msgStorageType = {
-    0: 'insert',
-    1: 'update',
-    2: 'ignore',
-  };
-
   socket.on('msg', function(msg) {
     logger.debug('recv a msg, socket.id: %s, roomId: %s, msg: ', socket.id, socket.rid, msg);
-
-    if (!(msg.storage in msgStorageType)) {
-      // default to insert
-      msg.storage = 0;
-    }
-
-    var msgId = msg.msgId;
-    var msgStorageTypeValue = msgStorageType[msg.storage];
-    var msgRoomKey = util.format('msg_%s_%s', socket.rid, msgStorageTypeValue);
-
-    var ts = parseInt(Date.now() / 1000);
-    var content = JSON.stringify({data: msg, ts: ts, uid: socket.uid});
-    if (msgStorageTypeValue == 'insert') {
-      // list insert
-      redisClient.lpush(msgRoomKey, content);
-    } else if (msgStorageTypeValue == 'update') {
-      // dict field update
-      redisClient.hset(msgRoomKey, msgId, content);
-      // backup update msg
-      redisClient.lpush(util.format('%s_backup', msgRoomKey), content);
-    } else if (msgStorageTypeValue == 'ignore') {
-      // backup ignore msg
-      redisClient.lpush(msgRoomKey, content);
-    }
+    model.saveRoomMessage(socket.rid, socket.uid, msg);
     socket.to(socket.rid).emit('msg', msg);
   });
 
@@ -163,61 +117,14 @@ var postAuthHandler = function(socket) {
     logger.info('recv sync request, socket.id: %s, roomId: %s' , socket.id, socket.rid);
     var offset = msg.offset || 0;
 
-    var msgRoomKey = util.format('msg_%s_%s', socket.rid, 'insert');
-
     if (msg.offset == 0) {
       //if start sync, need notify other user, sync begin.
       socket.to(socket.rid).emit('remote_sync', {uid: socket.uid});
     }
 
-    var pageSize = 200;
-    var msgs = [];
-
-    redisClient.lrange(msgRoomKey, offset, offset + pageSize, function(err, res) {
-      res = res || [];
-      for(var idx in res) {
-        var v = res[idx];
-        var r = JSON.parse(v);
-        msgs.push(r.data);
-      }
-
-      //if no more insert msgs
-      if (msgs.length < pageSize) {
-        msgRoomKey = util.format('msg_%s_%s', socket.rid, 'update');
-
-        redisClient.hgetall(msgRoomKey, function(err, res) {
-          res = res || {};
-          for (var k in res) {
-            var v = res[k];
-            try {
-              v = JSON.parse(v);
-            } catch(e) {
-              logger.warn(e);
-            }
-            msgs.push(v.data);
-          }
-
-          var content = {
-            data: msgs,
-            offset: offset + msgs.length,
-            next: 0
-          };
-
-          logger.debug('send sync resp finish: %s', JSON.stringify(content))
-          socket.emit('sync', content);
-
-        });
-      } else {
-        var content = {
-          data: msgs,
-          offset: offset + msgs.length,
-          next: 1
-        };
-
-        logger.debug('send sync resp: %s', JSON.stringify(content))
-        socket.emit('sync', content);
-      }
-
+    model.getRoomMessage(socket.rid, offset, function(content) {
+      logger.debug('send sync resp: %s', JSON.stringify(content))
+      socket.emit('sync', content);
     });
   });
 
@@ -251,7 +158,73 @@ var postAuthHandler = function(socket) {
 // main
 (function main() {
   auth.registerAuthProcessor(io, authHandler, {timeout: 10000}, postAuthHandler);
+  
+  app.use('/admin/monitor/', function(req, res, next) {
+    var uid = req.query['uid'];
+    var token = req.query['token'];
+    console.log(req.query, uid, token);
+    if (uid && token) {
+      db.admin.findOne({uid: uid}, function(err, ret) {
+        if (!err && ret && ret.token == token) {
+          next();
+        } else {
+          res.send({status: 1, data: 'require permission'});
+        }
+      });  
+    } else {
+      res.send({status: 1, data: 'require permission'});
+    }
+  });
 
+  app.get('/admin/monitor/stat', function(req, res) {
+    var online_user_count = 0;
+    var online_room_count = 0;
+    for (var k in onlineUsers) {
+      online_user_count++;
+    }
+  
+    for (var k in onlineRooms) {
+      online_room_count++;
+    }
+  
+    var stat = {
+      online_user_count: online_user_count,
+      online_room_count: online_room_count
+    };
+  
+    logger.info('monitor server stat:', JSON.stringify(stat));
+
+    res.send({status: 0, data: stat});  
+  });
+
+  app.get('/admin/monitor/room_users', function(req, res) {
+    var roomId = req.query['roomId'];
+    var offset = req.query['offset'] || 0;
+    if (roomId && roomId != '') {
+      var users = [];
+      if (roomId in onlineRooms) {
+        users = onlineRooms[roomId].users;
+      }
+      res.send({status: 0, data: users});
+    } else {
+      res.send({status: 1, data: 'require roomId'});
+    }
+  });
+
+  app.get('/admin/monitor/room_msgs', function(req, res) {
+    var roomId = req.query['roomId'];
+    var offset = req.query['offset'] || 0;
+    if (roomId && roomId != '') {
+      model.getRoomMessage(roomId, offset, true, function(msgs) {
+        logger.debug('monitor server room: %s', JSON.stringify(msgs))
+        res.send({status: 0, data: msgs});
+      });
+
+    } else {
+      res.send({status: 1, data: 'require roomId'});
+    }
+  });
+  
   http.listen(3000, function(){
     logger.info('listening on *:3000');
   });
