@@ -66,7 +66,7 @@ http://{hostname}:4000/user/create_token
 Method: POST
 
 Request:
-{uid: '1000'}
+{uid: '1000'} //Note: uid can not be 0
 
 Response:
 {status: 0, uid: '1000', token: 'xxxxxx'}
@@ -122,7 +122,7 @@ Status Code
 
 	```
 	Request:
-	{roomId: 1000}
+	{roomId: 1000} //Note: roomId can not be 0
 	Response:
 	{status: 0, data: 'xxxx'}
 	```
@@ -274,3 +274,9 @@ roomId: xxxx
 Response:
 {"status":0,"data":{"data":[{"data":{"data":"4444","storage":1,"msgId":"touch_begin"},"ts":1530009108,"uid":"4000"}],"offset":1,"next":0}}
 ```
+
+## Stress Test
+```
+cd test/stree-test
+./run.sh
+``` 

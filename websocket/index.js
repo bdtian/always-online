@@ -9,15 +9,18 @@ io.logger = logger;
 
 var auth = require('./io-auth');
 
+var onlineUserCount = 0;
+
 var onlineUsers = {
-  //uid:{socket: socket}
+  //uid:[{socket: socket}]
 };
 
 var onlineRooms = {
-  //rid: {users: [{uid:}]}
+  //rid: {users: [{socket: socket}]}
 };
 
 var authHandler = function(socket, data, done) {
+  logger.info('online user count: %d', onlineUserCount);
   // check for valid credential data
   var uid = data.uid;
   var token = data.token;
@@ -46,27 +49,47 @@ var authHandler = function(socket, data, done) {
 
 var kickout = function(uid, sid) {
   if (uid in onlineUsers) {
-    var socket = onlineUsers[uid].socket;
-    if (socket.id != sid) {
-      logger.warn("kickout, uid: %s, socket.id: %s", uid, socket.id);
-      socket.emit('kickout', 0);
-      socket.disconnect();
-     }
+    var sockets = onlineUsers[uid].sockets;
+    var hasKicked = false;
+    for (var idx in sockets) {
+      var socket = sockets[idx];
+      if (socket.id != sid) {
+        if (socket.rid) {
+          socket.leave(socket.rid);
+        }
+        socket.kicked = true;
+
+        logger.warn("kickout, uid: %s, socket.id: %s, roomId: %s", uid, socket.id, socket.rid);
+        socket.emit('kickout', 0);
+
+        //TODO: need set a timeout?
+        socket.disconnect();
+        hasKicked = true;
+       }
+    }
   }
+
+  return hasKicked;
 }
 
 var postAuthHandler = function(socket) {
+  onlineUserCount++;
   var uid = socket.uid;
   var sid = socket.id;
 
-  kickout(uid, sid);
-
-  // save user info and room in memory
-  if (uid in onlineUsers) {
-    logger.warn('user should not in onlineUsers, uid: %d', uid);
+  var hasKicked = kickout(uid, sid);
+  if (hasKicked) {
+    // other client has logged in, set the client to kicker,
+    // the kicker need't to broadcast join msg
+    socket.kicker = true;
   }
 
-  onlineUsers[uid] = {socket: socket};
+  // save user info and room in memory
+  if (!(uid in onlineUsers)) {
+    onlineUsers[uid] = [];
+  }
+
+  onlineUsers[uid].push({socket: socket});
 
   socket.on('join', function(msg){
     logger.info('recv a join with msg: ', msg);
@@ -85,12 +108,20 @@ var postAuthHandler = function(socket) {
       if (!(roomId in onlineRooms)) {
         onlineRooms[roomId] = {users: []}
       }
-      onlineRooms[roomId].users.push({uid: uid});
+      onlineRooms[roomId].users.push({socket: socket});
 
       socket.emit('join', {status: 0, data: 'join success'});
-      socket.to(roomId).emit('remote_join', {uid: socket.uid});
+      if (socket.kicker) {
+        logger.info(
+          'uid: %s kickout other client, no need to broadcast the join msg in room: %s',
+          socket.uid,
+          socket.rid
+        );
+      } else {
+        socket.to(roomId).emit('remote_join', {uid: socket.uid});
+      }
 
-      //send other users
+      //send other users to the client
       var roomUsers = onlineRooms[roomId].users;
       for (var idx in roomUsers) {
         var roomUser = roomUsers[idx];
@@ -123,25 +154,25 @@ var postAuthHandler = function(socket) {
   socket.on('msg', function(msg) {
     msg.uid = socket.uid;
     logger.debug(
-      'recv a msg, uid: %s, socket.id: %s, roomId: %s, msg: ',
+      'recv a msg, uid: %s, socket.id: %s, roomId: %s, msg size: %s bytes',
       socket.uid,
       socket.id,
       socket.rid,
-      msg
+      JSON.stringify(msg).length
     );
     model.saveRoomMessage(socket.rid, socket.uid, msg);
     socket.to(socket.rid).emit('msg', msg);
   });
 
   socket.on('sync', function(msg) {
-    // load datbase,
+    var offset = msg.offset || 0;
+
     logger.info(
       'recv sync request, uid: %s, socket.id: %s, roomId: %s',
       socket.uid,
       socket.id,
       socket.rid
     );
-    var offset = msg.offset || 0;
 
     if (msg.offset == 0) {
       //if start sync, need notify other user, sync begin.
@@ -160,18 +191,24 @@ var postAuthHandler = function(socket) {
   });
 
   socket.on('disconnect', function() {
+    onlineUserCount--;
+    logger.info('online user count: %d', onlineUserCount);
+
     // if the user has already join a room, broadcast to other users
     if (socket.rid) {
-      socket.to(socket.rid).emit('remote_disconnect', {uid: socket.uid});
+      if (!socket.kicked) {
+        socket.to(socket.rid).emit('remote_disconnect', {uid: socket.uid});
+      }
 
       // remove user in online rooms.
       if (socket.rid in onlineRooms) {
         var roomUsers = onlineRooms[socket.rid].users;
         for (var idx in roomUsers) {
-          if (roomUsers[idx].uid == socket.uid) {
+          if (roomUsers[idx].socket == socket) {
             roomUsers.splice(idx, 1);
             if (roomUsers.length == 0) {
               delete onlineRooms[socket.rid];
+              logger.info('delete room: %s', socket.rid);
             }
             break;
           }
@@ -180,7 +217,19 @@ var postAuthHandler = function(socket) {
     }
 
     // remove user in online user.
-    delete onlineUsers[socket.uid];
+    if (socket.uid) {
+      var sockets = onlineUsers[socket.uid];
+      for (var idx in sockets) {
+        if (sockets[idx].socket == socket) {
+          sockets.splice(idx, 1);
+          if (sockets.length == 0) {
+            delete onlineUsers[socket.uid];
+            logger.info('delete user: %s', socket.uid);
+          }
+          break;
+        }
+      }
+    }
 
     logger.info(
       'disconnect: uid: %s, roomId: %s, socket.id: %s',
@@ -212,22 +261,26 @@ var postAuthHandler = function(socket) {
   });
 
   app.get('/admin/monitor/stat', function(req, res) {
-    var online_user_count = 0;
-    var online_room_count = 0;
+    var users = 0;
+    var rooms = 0;
     for (var k in onlineUsers) {
-      online_user_count++;
+      users += onlineUsers[k].length;
     }
   
     for (var k in onlineRooms) {
-      online_room_count++;
+      if (onlineRooms[k].users.length > 0) {
+        rooms++;
+      }
     }
   
     var stat = {
-      online_user_count: online_user_count,
-      online_room_count: online_room_count
+      online_user_count: users,
+      online_room_count: rooms,
+      online_socket_count: onlineUserCount,
+      memory: process.memoryUsage(),
     };
   
-    logger.info('monitor server stat:', JSON.stringify(stat));
+    logger.info('monitor server stat:', stat);
 
     res.send({status: 0, data: stat});
   });
