@@ -230,7 +230,7 @@ socket.on('disconnect', function(msg) {
 
 ```
 
-## Monitor API
+## Admin API
 use those api to debug
 
 ### stat
@@ -276,6 +276,19 @@ roomId: xxxx
 
 Response:
 {"status":0,"data":{"data":[{"data":{"data":"4444","storage":1,"msgId":"touch_begin"},"ts":1530009108,"uid":"4000"}],"offset":1,"next":0}}
+```
+
+### system push
+
+```
+http://{hostname}:3000/admin/system/push?uid=xxx&token=xxx
+Request:
+{
+	roomId: xxx,
+	content: your msg
+}
+Response:
+{status: 0, data: 'success'}
 ```
 
 ## Stress Test

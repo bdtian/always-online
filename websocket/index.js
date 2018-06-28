@@ -1,4 +1,5 @@
 var app = require('express')();
+var bodyParser = require('body-parser');
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var util = require('util');
@@ -266,8 +267,11 @@ var postAuthHandler = function(socket) {
 // main
 (function main() {
   auth.registerAuthProcessor(io, authHandler, {timeout: 10000}, postAuthHandler);
-  
-  app.use('/admin/monitor/', function(req, res, next) {
+  // express
+  app.use(bodyParser.json());
+  app.use(bodyParser.urlencoded({ extended: false }));
+
+  app.use('/admin/', function(req, res, next) {
     var uid = req.query['uid'];
     var token = req.query['token'];
     if (uid && token) {
@@ -280,6 +284,18 @@ var postAuthHandler = function(socket) {
       });  
     } else {
       res.send({status: 1, data: 'require permission'});
+    }
+  });
+
+  app.post('/admin/system/push', function(req, res) {
+    var data = req.body;
+    var roomId = data.roomId;
+    var content = data.content;
+    if (roomId && roomId in onlineRooms) {
+      io.to(data.roomId).emit('system', content);
+      res.send({status: 0, data: 'success'});
+    } else {
+      res.send({status: 1, data: 'params required'});
     }
   });
 
