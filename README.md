@@ -125,6 +125,9 @@ Status Code
 	{roomId: 1000} //Note: roomId can not be 0
 	Response:
 	{status: 0, data: 'xxxx'}
+
+	Note:
+	if request is {roomId: 1000, dummy: true}, the client can peep the room info, and is invisible to other clients in the room.
 	```
 * remote_join
 

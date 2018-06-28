@@ -97,6 +97,10 @@ var postAuthHandler = function(socket) {
     var roomId = msg.roomId;
     socket.rid = roomId;
 
+    // dummy client can peep the room info.
+    var dummy = msg.dummy || false;
+    socket.dummy = dummy;
+
     if (roomId === '' || roomId == 'undefined') {
        socket.emit('join', {'status': 1, data: 'join failed, require roomId'});
        return;
@@ -118,7 +122,15 @@ var postAuthHandler = function(socket) {
           socket.rid
         );
       } else {
-        socket.to(roomId).emit('remote_join', {uid: socket.uid});
+        if (dummy) {
+          logger.info(
+            'uid: %s dummy client, no need to broadcast the join msg in room: %s',
+            socket.uid,
+            socket.rid
+          );
+        } else {
+          socket.to(roomId).emit('remote_join', {uid: socket.uid});
+        }
       }
 
       //send other users to the client
@@ -145,13 +157,24 @@ var postAuthHandler = function(socket) {
         );
       });
 
-      socket.to(socket.rid).emit('remote_leave', {uid: socket.uid});
+      if (!socket.kicked && !socket.dummy) {
+        socket.to(socket.rid).emit('remote_leave', {uid: socket.uid});
+      }
     }
 
     socket.disconnect(true);
   });
 
   socket.on('msg', function(msg) {
+    if (socket.dummy) {
+      logger.info(
+        'dummy client can not send msg, uid: %s, roomId: %s, socket.id',
+        socket.uid,
+        socket.rid,
+        socket.id
+      );
+      return;
+    }
     msg.uid = socket.uid;
     logger.debug(
       'recv a msg, uid: %s, socket.id: %s, roomId: %s, msg size: %s bytes',
@@ -174,14 +197,14 @@ var postAuthHandler = function(socket) {
       socket.rid
     );
 
-    if (msg.offset == 0) {
+    if (msg.offset == 0 && !socket.dummy) {
       //if start sync, need notify other user, sync begin.
       socket.to(socket.rid).emit('remote_sync', {uid: socket.uid});
     }
 
     model.getRoomMessage(socket.rid, offset, function(content) {
       logger.debug(
-        'send sync resp to uid: %s, msg size: %d bytes, msg number: %d',
+        'send sync resp to uid: %s, msg size: %d bytes, msg count: %d',
         socket.uid,
         JSON.stringify(content).length,
         content.data.length
@@ -196,7 +219,7 @@ var postAuthHandler = function(socket) {
 
     // if the user has already join a room, broadcast to other users
     if (socket.rid) {
-      if (!socket.kicked) {
+      if (!socket.kicked && !socket.dummy) {
         socket.to(socket.rid).emit('remote_disconnect', {uid: socket.uid});
       }
 
