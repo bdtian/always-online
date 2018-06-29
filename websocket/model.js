@@ -7,7 +7,7 @@ var redisClient = redis.createClient({
   host: 'localhost', 
   port: 6379,
   retry_strategy: function (options) {
-    if (options.error.code === 'ECONNREFUSED') {
+    if (options.error && options.error.code === 'ECONNREFUSED') {
         // End reconnecting on a specific error and flush all commands with a individual error 
         logger.error('refuse connect, retry', options.attempt);
     }
