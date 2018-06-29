@@ -245,7 +245,7 @@ uid: xxx
 token: xxxx
 
 Response:
-{status: 0, data: {online_user_count: 2, online_room_count: 1}}
+{status: 0, data: {online_user_count: 2, online_room_count: 1, ...}}
 ```
 ### room_users
 
@@ -286,6 +286,18 @@ Request:
 {
 	roomId: xxx,
 	content: your msg
+}
+Response:
+{status: 0, data: 'success'}
+```
+
+### system config
+
+```
+http://{hostname}:3000/admin/system/config?uid=xxx&token=xxx
+Request:
+{
+	forceUserAuth: true | false
 }
 Response:
 {status: 0, data: 'success'}

@@ -14,8 +14,11 @@ module.exports.registerAuthProcessor = function(io, authhandler, options, callba
   };
 
   return io.on('connection', function(socket) {
-    var ip = socket.handshake.address;
-    logger.info('recv a connection from ip: %s, socket.id: %s', ip, socket.id);
+    logger.info(
+      'recv a connection socket.id: %s, details: %s',
+      socket.id,
+      JSON.stringify(socket.handshake)
+    );
 
     var disconnect = function(error) {
       if (error == null) {

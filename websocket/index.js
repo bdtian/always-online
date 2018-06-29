@@ -10,6 +10,10 @@ io.logger = logger;
 
 var auth = require('./io-auth');
 
+// for security, development env igore user auth by default,
+// but can force user auth by set forceUserAuth to true using /admin/system/config api
+var forceUserAuth = false;
+
 var onlineUserCount = 0;
 
 var onlineUsers = {
@@ -25,7 +29,7 @@ var authHandler = function(socket, data, done) {
   // check for valid credential data
   var uid = data.uid;
   var token = data.token;
-  if (process.env.NODE_ENV === 'development') {
+  if (process.env.NODE_ENV === 'development' && !forceUserAuth) {
     logger.info('[development env] ignore auth, uid: %s, token: %s', uid, token);
     socket.uid = uid;
     done();
@@ -299,6 +303,18 @@ var postAuthHandler = function(socket) {
     }
   });
 
+  app.post('/admin/system/config', function(req, res) {
+    var data = req.body;
+    var configForceUserAuth = data.forceUserAuth;
+    if (configForceUserAuth != 'undefined') {
+      forceUserAuth = configForceUserAuth;
+    }
+
+    // other config options can be added
+
+    res.send({status: 0, data: 'success'});
+  });
+
   app.get('/admin/monitor/stat', function(req, res) {
     var users = 0;
     var rooms = 0;
@@ -316,6 +332,8 @@ var postAuthHandler = function(socket) {
       online_user_count: users,
       online_room_count: rooms,
       online_socket_count: onlineUserCount,
+      force_user_auth: forceUserAuth,
+      env: process.env.NODE_ENV,
       memory: process.memoryUsage(),
     };
   

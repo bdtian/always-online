@@ -18,7 +18,7 @@ var redisClient = redis.createClient({
 
     // reconnect after 
     return Math.max(options.attempt * 100, 3000);
-  } 
+  }
 });
 
 redisClient.on("error", function (err) {
