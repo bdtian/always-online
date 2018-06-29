@@ -50,10 +50,10 @@ var authHandler = function(socket, data, done) {
 
 var kickout = function(uid, sid) {
   if (uid in onlineUsers) {
-    var sockets = onlineUsers[uid].sockets;
+    var sockets = onlineUsers[uid];
     var hasKicked = false;
     for (var idx in sockets) {
-      var socket = sockets[idx];
+      var socket = sockets[idx].socket;
       if (socket.id != sid) {
         if (socket.rid) {
           socket.leave(socket.rid);
