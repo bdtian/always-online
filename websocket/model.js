@@ -109,15 +109,15 @@ var saveRoomMessage = function(roomId, uid, msg) {
   var content = JSON.stringify({data: msg, ts: ts, uid: uid});
   if (msgStorageTypeValue == 'insert') {
     // list insert
-    redisClient.lpush(msgRoomKey, content);
+    redisClient.rpush(msgRoomKey, content);
   } else if (msgStorageTypeValue == 'update') {
     // dict field update
     redisClient.hset(msgRoomKey, msgId, content);
     // backup update msg
-    redisClient.lpush(util.format('%s_backup', msgRoomKey), content);
+    redisClient.rpush(util.format('%s_backup', msgRoomKey), content);
   } else if (msgStorageTypeValue == 'ignore') {
     // backup ignore msg
-    redisClient.lpush(msgRoomKey, content);
+    redisClient.rpush(msgRoomKey, content);
   }
 }
 
