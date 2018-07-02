@@ -127,6 +127,9 @@ var clearRoomMessage = function(roomId) {
     var msgStorageTypeValue = msgStorageType[idx];
     var msgRoomKey = util.format('msg_%s_%s', roomId, msgStorageTypeValue);
     redisClient.del(msgRoomKey);
+    if (msgStorageTypeValue == 'update') {
+      redisClient.del(util.format('%s_backup', msgRoomKey));
+    }
   }
 }
 

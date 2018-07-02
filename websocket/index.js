@@ -338,21 +338,26 @@ var postAuthHandler = function(socket) {
   });
 
   app.get('/admin/monitor/stat', function(req, res) {
-    var users = 0;
-    var rooms = 0;
+    var users = [];
+    var rooms = [];
+
     for (var k in onlineUsers) {
-      users += onlineUsers[k].length;
+      for (var m in onlineUsers[k]) {
+        users.push({uid: k, socketId: onlineUsers[k][m].socket.id});
+      }
     }
   
     for (var k in onlineRooms) {
       if (onlineRooms[k].users.length > 0) {
-        rooms++;
+        rooms.push(k);
       }
     }
   
     var stat = {
-      online_user_count: users,
-      online_room_count: rooms,
+      online_user_count: users.length,
+      online_users: users,
+      online_room_count: rooms.length,
+      online_rooms: rooms,
       online_socket_count: onlineUserCount,
       force_user_auth: forceUserAuth,
       env: process.env.NODE_ENV,
@@ -368,7 +373,10 @@ var postAuthHandler = function(socket) {
     if (roomId && roomId != '') {
       var users = [];
       if (roomId in onlineRooms) {
-        users = onlineRooms[roomId].users;
+        var us = onlineRooms[roomId].users;
+        for (var idx in us) {
+          users.push({uid: us[idx].socket.uid});
+        }
       }
       res.send(response.makeResponse(response.ok, {users: users}));
     } else {
