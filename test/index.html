@@ -15,6 +15,10 @@
   </head>
   <body>
 <div>
+ Url:
+ <input id="url" autocomplete="off" />
+</div>
+<div>
 Uid:
 <input id="uid" autocomplete="off" />
 </div>
@@ -29,11 +33,12 @@ Token:
 <div action="">
 <input id="message" autocomplete="off" /><button id='btn_msg'>Send Message</button>
 </div>
-<script src="http://localhost:3000/socket.io/socket.io.js"></script>
+<script src="https://ao-dev.xiongmaopeilian.com/socket.io/socket.io.js"></script>
 <script>
 var socket;
-function socket_init(uid, token) {
-    socket = io.connect('ws://localhost:3000?transport=websocket');
+function socket_init(url, uid, token) {
+    url = url || 'ws://localhost:3000?transport=websocket';
+    socket = io.connect(url, {transports: ['websocket']});
     socket.on('connect', function() {
       socket.emit('authenticate', {uid: uid, token: token});
     });
@@ -73,7 +78,8 @@ function socket_init(uid, token) {
 document.getElementById('btn_login').addEventListener('click', function(e) {
   var uid = document.getElementById('uid').value;
   var token = document.getElementById('token').value;
-  socket_init(uid, token);
+  var url = document.getElementById('url').value;
+  socket_init(url, uid, token);
 });
 
 document.getElementById('btn_msg').addEventListener('click', function(e) {

@@ -3,8 +3,9 @@
 (function() {
   var ready = true;
   var socket;
-  var socket_init = function(uid, token) {
-    socket = io.connect('ws://localhost:3000?transport=websocket');
+  var socket_init = function(url, uid, token) {
+    url = url || 'ws://localhost:3000?transport=websocket';
+    socket = io.connect(url, {transports: ['websocket']});
     socket.on('connect', function() {
       socket.emit('authenticate', {uid: uid, token: token});
     });
@@ -67,7 +68,8 @@
   document.getElementById('btn_login').addEventListener('click', function(e) {
     var uid = document.getElementById('uid').value;
     var token = document.getElementById('token').value;
-    socket_init(uid, token);
+    var url = document.getElementById('url').value;
+    socket_init(url, uid, token);
   });
   
   var canvas = document.getElementsByClassName('whiteboard')[0];
