@@ -27,13 +27,17 @@ function(err) {
 
 var Schema = mongoose.Schema;
 var userSchema = new Schema({
-	uid: String,
-	token: String
+	uid: {type: String, unique: true},
+	token: String,
+	createTime: Number,
+	updateTime: Number,
 });
 
 var adminSchema = new Schema({
-	uid: String,
-	token: String
+	uid: {type: String, unique: true},
+	token: String,
+	createTime: Number,
+	updateTime: Number,
 });
 
 exports.user = db.model('user', userSchema);

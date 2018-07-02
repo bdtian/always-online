@@ -1,10 +1,10 @@
 var app = require('express')();
 var http = require('http').Server(app);
 var bodyParser = require('body-parser');
-const uuidv4 = require('uuid/v4');
 var db = require('../database/db');
 var logger = require('../utils/logger')('alway-online-api');
 var response = require('../utils/response');
+var util = require('../utils/util');
 
 // express
 app.use(bodyParser.json());
@@ -39,13 +39,14 @@ app.post('/user/create_token', function(req, res) {
         if (ret) {
           res.send(response.makeResponse(response.userExists));
         } else {
-          var random_token = uuidv4();
-          db.user.create({uid: account.uid, token: random_token}, function(err) {
+          var randomToken = util.genRandString();
+          var ts = parseInt(Date.now() / 1000);
+          db.user.create({uid: account.uid, token: randomToken, createTime: ts, updateTime: ts}, function(err) {
             if (err) {
               logger.error('user/create_token create failed: ', err);
               res.send(response.makeResponse(response.operationFailed, {uid: account.uid}));
             } else {
-              res.send(response.makeResponse(response.ok, {uid: account.uid, token: random_token}))
+              res.send(response.makeResponse(response.ok, {uid: account.uid, token: randomToken}))
             }
           });
         }
@@ -66,8 +67,9 @@ app.post('/user/refresh_token', function(req, res) {
         res.send(response.makeResponse(response.operationFailed, {uid: account.uid}));
       } else {
         if (ret) {
-          var randomToken = uuidv4();
-          db.user.update({uid: account.uid}, {$set: {token: randomToken}}, function(err) {
+          var randomToken = util.genRandString();
+          var ts = parseInt(Date.now() / 1000);
+          db.user.update({uid: account.uid}, {$set: {token: randomToken, updateTime: ts}}, function(err) {
             if (err) {
               logger.error('user/refresh_token update failed: ', err);
               res.send(response.makeResponse(response.operationFailed, {uid: account.uid}));
