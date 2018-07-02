@@ -3,7 +3,7 @@
 (function() {
   var ready = true;
   var socket;
-  var socket_init = function(url, uid, token) {
+  var socket_init = function(url, uid, token, roomId) {
     url = url || 'ws://localhost:3000?transport=websocket';
     socket = io.connect(url, {transports: ['websocket']});
     socket.on('connect', function() {
@@ -13,7 +13,7 @@
     socket.on('authenticate', function(msg) {
       if (msg.status == 0) {
         console.log('auth success')
-        socket.emit('join', {roomId: 1000})
+        socket.emit('join', {roomId: roomId})
       } else {
         console.log('auth failed')
       }
@@ -69,7 +69,8 @@
     var uid = document.getElementById('uid').value;
     var token = document.getElementById('token').value;
     var url = document.getElementById('url').value;
-    socket_init(url, uid, token);
+    var roomId = document.getElementById('roomId').value;
+    socket_init(url, uid, token, roomId);
   });
   
   var canvas = document.getElementsByClassName('whiteboard')[0];
