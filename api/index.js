@@ -4,20 +4,11 @@ var bodyParser = require('body-parser');
 const uuidv4 = require('uuid/v4');
 var db = require('../database/db');
 var logger = require('../utils/logger')('alway-online-api');
+var response = require('../utils/response');
 
 // express
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
-
-var errMsg = {
-  0: 'success',
-  1: 'require permission',
-  2: 'user exists, please use refresh token api',
-  3: 'operation failed',
-  4: 'server error',
-  5: 'param error',
-  6: 'user not exists'
-};
 
 app.use('/user/', function(req, res, next) {
   var uid = req.query['uid'];
@@ -27,11 +18,13 @@ app.use('/user/', function(req, res, next) {
       if (!err && ret && ret.token == token) {
         next();
       } else {
-        res.send({status: 1, data: 'require permission'});
+        res.send(response.makeResponse(response.permission));
       }
     });
+
+    logger.info('method=%s, path=/user%s, params=%s', req.method, req.path, JSON.stringify(req.query), req.body);
   } else {
-    res.send({status: 1, data: 'require permission'});
+    res.send(response.makeResponse(response.permission));
   }
 });
 
@@ -41,25 +34,25 @@ app.post('/user/create_token', function(req, res) {
     db.user.findOne({uid: account.uid}, function(err, ret) {
       if (err) {
         logger.error('user/create_token query failed: ', err);
-        res.send({status: 4, msg: errMsg[4], uid: account.uid});
+        res.send(response.makeResponse(response.operationFailed, {uid: account.uid}));
       } else {
         if (ret) {
-          res.send({status: 2, msg: errMsg[2], uid: account.uid});
+          res.send(response.makeResponse(response.userExists));
         } else {
           var random_token = uuidv4();
           db.user.create({uid: account.uid, token: random_token}, function(err) {
             if (err) {
               logger.error('user/create_token create failed: ', err);
-              res.send({status: 3, msg: errMsg[3], uid: account.uid});
+              res.send(response.makeResponse(response.operationFailed, {uid: account.uid}));
             } else {
-              res.send({status: 0, msg: errMsg[0], uid: account.uid, token: random_token});
+              res.send(response.makeResponse(response.ok, {uid: account.uid, token: random_token}))
             }
           });
         }
       }
     });
   } else {
-    res.send({status: 5,  msg: errMsg[5]});
+    res.send(response.makeResponse(response.paramError));
   }
 });
 
@@ -70,27 +63,26 @@ app.post('/user/refresh_token', function(req, res) {
     db.user.findOne({uid: account.uid}, function(err, ret) {
       if (err) {
         logger.error('user/refresh_token query failed: ', err);
-        res.send({status: 4,  msg: errMsg[4], uid: account.uid});
+        res.send(response.makeResponse(response.operationFailed, {uid: account.uid}));
       } else {
         if (ret) {
-          var random_token = uuidv4();
-          db.user.update({uid: account.uid}, {$set: {token: random_token}}, function(err) {
+          var randomToken = uuidv4();
+          db.user.update({uid: account.uid}, {$set: {token: randomToken}}, function(err) {
             if (err) {
               logger.error('user/refresh_token update failed: ', err);
-              res.send({status: 4, msg: errMsg[4], uid: account.uid});
+              res.send(response.makeResponse(response.operationFailed, {uid: account.uid}));
             } else {
-              res.send({status: 0, msg: errMsg[0], uid: account.uid, token: random_token});
+              res.send(response.makeResponse(response.ok, {uid: account.uid, token: randomToken}))
             }
           });
         } else {
-          res.send({status: 6,  msg: errMsg[6], uid: account.uid});
+          res.send(response.makeResponse(response.userNotExists, {uid: account.uid}));
         }
       }
     });
   } else {
-    res.send({status: 5, msg: errMsg[5]});
+    res.send(response.makeResponse(response.paramError));
   }
-
 });
 
 http.listen(4000, function(){

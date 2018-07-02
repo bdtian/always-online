@@ -42,51 +42,6 @@ Always online is an realtime message sync service which is based on [socket.io](
 	node index.js all
 	```
 
-## Rest API for account
-Need called from business server to register account for security.
-
-Status Code:
-
-```
-var errMsg = {
-  0: 'success',
-  1: 'user exists',
-  2: 'operation failed',
-  3: 'server error',
-  4: 'param error',
-  5: 'user not exists'
-};
-
-```
-### create_token
-
-```
-http://{hostname}:4000/user/create_token
-
-Method: POST
-
-Request:
-{uid: '1000'} //Note: uid can not be 0
-
-Response:
-{status: 0, uid: '1000', token: 'xxxxxx'}
-
-```
-### refresh_token
-
-```
-http://{hostname}:4000/user/refresh_token
-
-Method: POST
-
-Request:
-{uid: '1000'}
-
-Response:
-{status: 0, uid: '1000', token: 'xxxxxx'}
-
-```
-
 ## Socket.io build in Message Protocol
 Please refer [socket io client](https://github.com/socketio/socket.io-client/blob/master/docs/API.md#new-managerurl-options)
 
@@ -229,11 +184,74 @@ socket.on('disconnect', function(msg) {
 ......
 
 ```
+## Rest API
+common response struct
 
-## Admin API
+```
+{
+	meta: {
+		status: 0|1|...,
+		msg: ''
+	},
+	data: {
+		... // response data
+	}
+}
+```
+### Account API
+Need called from business server to register account for security.
+
+Status Code:
+
+```
+var errMsg = {
+  0: 'success',
+  1: 'user exists',
+  2: 'operation failed',
+  3: 'server error',
+  4: 'param error',
+  5: 'user not exists'
+};
+
+```
+#### create_token
+
+```
+http://{hostname}:4000/user/create_token
+
+Method: POST
+
+Request:
+{uid: '1000'} //Note: uid can not be 0
+
+Response data:
+{
+	uid: '1000',
+	token: 'xxxxxx'
+}
+```
+#### refresh_token
+
+```
+http://{hostname}:4000/user/refresh_token
+
+Method: POST
+
+Request:
+{uid: '1000'}
+
+Response data:
+{
+	uid: '1000',
+	token: 'xxxxxx'
+}
+
+```
+
+### Admin API
 use those api to debug
 
-### stat
+#### stat
 
 ```
 http://{hostname}:3000/admin/monitor/stat?uid=xxx&token=xxx
@@ -244,10 +262,14 @@ Request:
 uid: xxx
 token: xxxx
 
-Response:
-{status: 0, data: {online_user_count: 2, online_room_count: 1, ...}}
+Response data:
+{
+	online_user_count: 2,
+	online_room_count: 1,
+	...
+}
 ```
-### room_users
+#### room_users
 
 ```
 http://{hostname}:3000/admin/monitor/room_users?roomId=xxx&uid=xxx&token=xxx
@@ -259,10 +281,15 @@ uid: xxx
 token: xxxx
 roomId: xxxx
 
-Response:
-{status: 0, data: [{uid: xxx}, {uid: xxx}]}
+Response data:
+{
+	users: [
+		{uid: xxx},
+		{uid: xxx}
+	]
+}
 ```
-### room_msgs
+#### room_msgs
 
 ```
 http://{hostname}:3000/admin/monitor/room_msgs?roomId=xxx&uid=xxx&token=xxx
@@ -275,33 +302,68 @@ token: xxxx
 roomId: xxxx
 
 Response:
-{"status":0,"data":{"data":[{"data":{"data":"4444","storage":1,"msgId":"touch_begin"},"ts":1530009108,"uid":"4000"}],"offset":1,"next":0}}
+{
+	msgs: [
+		{
+			"data":{
+				"data":"4444",
+				"storage":1,
+				"msgId":"touch_begin"
+			},
+			"ts":1530009108,
+			"uid":"4000"
+		}
+	],
+	"offset":1,
+	"next":0
+}
 ```
 
-### system push
+#### system push
 
 ```
 http://{hostname}:3000/admin/system/push?uid=xxx&token=xxx
+
+Method: POST
+
 Request:
 {
 	roomId: xxx,
 	content: your msg
 }
-Response:
-{status: 0, data: 'success'}
+Response data:
+none
 ```
 
-### system config
+#### system config
 
 ```
 http://{hostname}:3000/admin/system/config?uid=xxx&token=xxx
+
+Method: POST
+
 Request:
 {
 	forceUserAuth: true | false
 }
 Response:
-{status: 0, data: 'success'}
+none
 ```
+
+#### clear room msgs
+```
+http://{hostname}:3000/admin/system/clear_room_msgs?uid=xxx&token=xxx
+
+Method: POST
+
+Request:
+{
+	roomId: 1000
+}
+Response:
+none
+```
+
 
 ## Stress Test
 ```

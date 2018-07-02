@@ -7,6 +7,7 @@ var db = require('../database/db');
 var model = require('./model');
 var logger = require('../utils/logger')('always-online-websocket');
 io.logger = logger;
+var response = require('../utils/response');
 
 var auth = require('./io-auth');
 
@@ -283,23 +284,34 @@ var postAuthHandler = function(socket) {
         if (!err && ret && ret.token == token) {
           next();
         } else {
-          res.send({status: 1, data: 'require permission'});
+          res.send(response.makeResponse(response.permission));
         }
-      });  
+      });
+      logger.info(
+        'method=%s, path=/admin%s, params=%s, body=',
+        req.method,
+        req.path,
+        JSON.stringify(req.query),
+        req.body
+      );
     } else {
-      res.send({status: 1, data: 'require permission'});
+      res.send(response.makeResponse(response.permission));
     }
   });
 
   app.post('/admin/system/push', function(req, res) {
     var data = req.body;
-    var roomId = data.roomId;
+    var roomId = data.roomId || req.query['roomId'];
     var content = data.content;
-    if (roomId && roomId in onlineRooms) {
-      io.to(data.roomId).emit('system', content);
-      res.send({status: 0, data: 'success'});
+    if (roomId && roomId != '') {
+      if (roomId in onlineRooms) {
+        io.to(data.roomId).emit('system', content);
+        res.send(response.makeResponse(response.ok));
+      } else {
+        res.send(response.makeResponse(response.roomNotExists));
+      }
     } else {
-      res.send({status: 1, data: 'params required'});
+      res.send(response.makeResponse(response.paramError));
     }
   });
 
@@ -312,7 +324,17 @@ var postAuthHandler = function(socket) {
 
     // other config options can be added
 
-    res.send({status: 0, data: 'success'});
+    res.send(response.makeResponse(response.ok));
+  });
+
+  app.post('/admin/system/clear_room_msg', function(req, res) {
+    var roomId = req.query['roomId'] || req.body.roomId;
+    if (roomId && roomId != '') {
+      model.clearRoomMessage(roomId);
+      res.send(response.makeResponse(response.ok));
+    } else {
+      res.send(response.makeResponse(response.paramError));
+    }
   });
 
   app.get('/admin/monitor/stat', function(req, res) {
@@ -337,9 +359,7 @@ var postAuthHandler = function(socket) {
       memory: process.memoryUsage(),
     };
   
-    logger.info('monitor server stat:', stat);
-
-    res.send({status: 0, data: stat});
+    res.send(response.makeResponse(response.ok, stat));
   });
 
   app.get('/admin/monitor/room_users', function(req, res) {
@@ -350,9 +370,9 @@ var postAuthHandler = function(socket) {
       if (roomId in onlineRooms) {
         users = onlineRooms[roomId].users;
       }
-      res.send({status: 0, data: users});
+      res.send(response.makeResponse(response.ok, {users: users}));
     } else {
-      res.send({status: 1, data: 'require roomId'});
+      res.send(response.makeResponse(response.paramError));
     }
   });
 
@@ -366,11 +386,11 @@ var postAuthHandler = function(socket) {
           JSON.stringify(msgs).length,
           msgs.data.length
         );
-        res.send({status: 0, data: msgs});
+        res.send(response.makeResponse(response.ok, {msgs: msgs}));
       });
 
     } else {
-      res.send({status: 1, data: 'require roomId'});
+      res.send(response.makeResponse(response.paramError));
     }
   });
   

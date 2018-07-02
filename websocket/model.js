@@ -121,7 +121,17 @@ var saveRoomMessage = function(roomId, uid, msg) {
   }
 }
 
+
+var clearRoomMessage = function(roomId) {
+  for (var idx in msgStorageType) {
+    var msgStorageTypeValue = msgStorageType[idx];
+    var msgRoomKey = util.format('msg_%s_%s', roomId, msgStorageTypeValue);
+    redisClient.del(msgRoomKey);
+  }
+}
+
 module.exports = {
   getRoomMessage: getRoomMessage,
-  saveRoomMessage: saveRoomMessage
+  saveRoomMessage: saveRoomMessage,
+  clearRoomMessage: clearRoomMessage
 }
