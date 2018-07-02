@@ -107,7 +107,7 @@ var postAuthHandler = function(socket) {
   onlineUsers[uid].push({socket: socket});
 
   // if not join room within 10 secs, disconnect the socket
-  var joinTimeout = config.get('joinTimeOut') || 1000;
+  var joinTimeout = config.get('joinTimeout') || 1000;
   setTimeout(function() {
     if (!socket.rid) {
       logger.warn(
