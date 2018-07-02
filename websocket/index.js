@@ -1,5 +1,4 @@
 var app = require('express')();
-var bodyParser = require('body-parser');
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
 var util = require('util');
@@ -7,30 +6,34 @@ var db = require('../database/db');
 var model = require('./model');
 var logger = require('../utils/logger')('always-online-websocket');
 io.logger = logger;
-var response = require('../utils/response');
 
 var auth = require('./io-auth');
 
+var api = require('./api');
+
 // for security, development env igore user auth by default,
 // but can force user auth by set forceUserAuth to true using /admin/system/config api
-var forceUserAuth = false;
+if (app.runContext) {
+  logger.error('app.runContext conflict');
+}
 
-var onlineUserCount = 0;
-
-var onlineUsers = {
-  //uid:[{socket: socket}]
-};
-
-var onlineRooms = {
-  //rid: {users: [{socket: socket}]}
+app.runContext = {
+  forceUserAuth: false,
+  onlineUsers: {
+    //uid:[{socket: socket}]
+  },
+  onlineRooms: {
+    //rid: {users: [{socket: socket}]}
+  },
+  onlineUserCount: 0,
 };
 
 var authHandler = function(socket, data, done) {
-  logger.info('online user count: %d', onlineUserCount);
+  logger.info('online user count: %d', app.runContext.onlineUserCount);
   // check for valid credential data
   var uid = data.uid;
   var token = data.token;
-  if (process.env.NODE_ENV === 'development' && !forceUserAuth) {
+  if (process.env.NODE_ENV === 'development' && !app.runContext.forceUserAuth) {
     logger.info('[development env] ignore auth, uid: %s, token: %s', uid, token);
     socket.uid = uid;
     done();
@@ -54,6 +57,8 @@ var authHandler = function(socket, data, done) {
 };
 
 var kickout = function(uid, sid) {
+  var onlineUsers = app.runContext.onlineUsers;
+
   if (uid in onlineUsers) {
     var sockets = onlineUsers[uid];
     var hasKicked = false;
@@ -79,7 +84,11 @@ var kickout = function(uid, sid) {
 }
 
 var postAuthHandler = function(socket) {
-  onlineUserCount++;
+  var onlineUsers = app.runContext.onlineUsers;
+  var onlineRooms = app.runContext.onlineRooms;
+
+  app.runContext.onlineUserCount++;
+
   var uid = socket.uid;
   var sid = socket.id;
 
@@ -220,8 +229,8 @@ var postAuthHandler = function(socket) {
   });
 
   socket.on('disconnect', function() {
-    onlineUserCount--;
-    logger.info('online user count: %d', onlineUserCount);
+    app.runContext.onlineUserCount--;
+    logger.info('online user count: %d', app.runContext.onlineUserCount);
 
     // if the user has already join a room, broadcast to other users
     if (socket.rid) {
@@ -272,135 +281,7 @@ var postAuthHandler = function(socket) {
 // main
 (function main() {
   auth.registerAuthProcessor(io, authHandler, {timeout: 10000}, postAuthHandler);
-  // express
-  app.use(bodyParser.json());
-  app.use(bodyParser.urlencoded({ extended: false }));
-
-  app.use('/admin/', function(req, res, next) {
-    var uid = req.query['uid'];
-    var token = req.query['token'];
-    if (uid && token) {
-      db.admin.findOne({uid: uid}, function(err, ret) {
-        if (!err && ret && ret.token == token) {
-          next();
-        } else {
-          res.send(response.makeResponse(response.permission));
-        }
-      });
-      logger.info(
-        'method=%s, path=/admin%s, params=%s, body=',
-        req.method,
-        req.path,
-        JSON.stringify(req.query),
-        req.body
-      );
-    } else {
-      res.send(response.makeResponse(response.permission));
-    }
-  });
-
-  app.post('/admin/system/push', function(req, res) {
-    var data = req.body;
-    var roomId = data.roomId || req.query['roomId'];
-    var content = data.content;
-    if (roomId && roomId != '') {
-      if (roomId in onlineRooms) {
-        io.to(data.roomId).emit('system', content);
-        res.send(response.makeResponse(response.ok));
-      } else {
-        res.send(response.makeResponse(response.roomNotExists));
-      }
-    } else {
-      res.send(response.makeResponse(response.paramError));
-    }
-  });
-
-  app.post('/admin/system/config', function(req, res) {
-    var data = req.body;
-    var configForceUserAuth = data.forceUserAuth;
-    if (configForceUserAuth != 'undefined') {
-      forceUserAuth = configForceUserAuth;
-    }
-
-    // other config options can be added
-
-    res.send(response.makeResponse(response.ok));
-  });
-
-  app.post('/admin/system/clear_room_msg', function(req, res) {
-    var roomId = req.query['roomId'] || req.body.roomId;
-    if (roomId && roomId != '') {
-      model.clearRoomMessage(roomId);
-      res.send(response.makeResponse(response.ok));
-    } else {
-      res.send(response.makeResponse(response.paramError));
-    }
-  });
-
-  app.get('/admin/monitor/stat', function(req, res) {
-    var users = [];
-    var rooms = [];
-
-    for (var k in onlineUsers) {
-      for (var m in onlineUsers[k]) {
-        users.push({uid: k, socketId: onlineUsers[k][m].socket.id});
-      }
-    }
-  
-    for (var k in onlineRooms) {
-      if (onlineRooms[k].users.length > 0) {
-        rooms.push(k);
-      }
-    }
-  
-    var stat = {
-      online_user_count: users.length,
-      online_users: users,
-      online_room_count: rooms.length,
-      online_rooms: rooms,
-      online_socket_count: onlineUserCount,
-      force_user_auth: forceUserAuth,
-      env: process.env.NODE_ENV,
-      memory: process.memoryUsage(),
-    };
-  
-    res.send(response.makeResponse(response.ok, stat));
-  });
-
-  app.get('/admin/monitor/room_users', function(req, res) {
-    var roomId = req.query['roomId'];
-    var offset = req.query['offset'] || 0;
-    if (roomId && roomId != '') {
-      var users = [];
-      if (roomId in onlineRooms) {
-        var us = onlineRooms[roomId].users;
-        for (var idx in us) {
-          users.push({uid: us[idx].socket.uid});
-        }
-      }
-      res.send(response.makeResponse(response.ok, {users: users}));
-    } else {
-      res.send(response.makeResponse(response.paramError));
-    }
-  });
-
-  app.get('/admin/monitor/room_msgs', function(req, res) {
-    var roomId = req.query['roomId'];
-    var offset = req.query['offset'] || 0;
-    if (roomId && roomId != '') {
-      model.getRoomMessage(roomId, offset, true, function(msgs) {
-        logger.debug(
-          'monitor server room, msg size: %d bytes, msg number: %d',
-          JSON.stringify(msgs).length,
-          msgs.data.length
-        );
-        res.send(response.makeResponse(response.ok, {msgs: msgs}));
-      });
-
-    } else {
-      res.send(response.makeResponse(response.paramError));
-    }
-  });
+  api.regsiter(app);
   
   http.listen(3000, function(){
     logger.info('listening on *:3000');
