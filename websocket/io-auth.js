@@ -33,6 +33,9 @@ module.exports.registerAuthProcessor = function(io, authhandler, options, callba
 
     timeout(options.timeout, function() {
       if (!socket.authenticated) {
+        logger.warn(
+          "socket.id: %s, does not auth within %s secs, will disconnect",
+          socket.id, options.timeout);
         return disconnect('authentication timeout');
       }
     });

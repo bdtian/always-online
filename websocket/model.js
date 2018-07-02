@@ -1,11 +1,12 @@
 var redis = require('redis');
 var util = require('util');
+var config = require('config');
 var logger = require('../utils/logger')('always-online-model');
 
 // used for msg storage.
 var redisClient = redis.createClient({ 
-  host: 'localhost', 
-  port: 6379,
+  host: config.get('redis.host') || 'localhost',
+  port: config.get('redis.port') || 6379,
   retry_strategy: function (options) {
     if (options.error && options.error.code === 'ECONNREFUSED') {
         // End reconnecting on a specific error and flush all commands with a individual error 
@@ -16,7 +17,7 @@ var redisClient = redis.createClient({
         logger.error('retry connect more than 10 times');
     }
 
-    // reconnect after 
+    // reconnect after
     return Math.max(options.attempt * 100, 3000);
   }
 });

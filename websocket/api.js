@@ -3,6 +3,7 @@ var logger = require('../utils/logger')('always-online-websocket');
 var db = require('../database/db');
 var model = require('./model');
 var bodyParser = require('body-parser');
+var config = require('config');
 
 module.exports.regsiter = function(app) {
   // express
@@ -99,6 +100,7 @@ module.exports.regsiter = function(app) {
       online_socket_count: onlineUserCount,
       force_user_auth: forceUserAuth,
       env: process.env.NODE_ENV,
+      config: config,
       memory: process.memoryUsage(),
     };
   

@@ -1,16 +1,25 @@
 var mongoose = require('mongoose');
 var logger = require('../utils/logger')('always-online-db');
+var config = require('config');
+var util = require('util');
 
 const options = {
 	keepAlive: 1,
   reconnectTries: Number.MAX_VALUE, // Never stop trying to reconnect
-  reconnectInterval: 3000, // Reconnect every 500ms
+  reconnectInterval: 500, // Reconnect every 500ms
   poolSize: 10, // Maintain up to 10 socket connections
   // If not connected, return errors immediately rather than waiting for reconnect
   bufferMaxEntries: 0
 };
 
-var db = mongoose.createConnection('mongodb://localhost/account', options).on('error', 
+var connectStr = util.format(
+	'mongodb://%s:%d/%s',
+	config.get('mongodb.host') || 'localhost',
+	config.get('mongodb.port') || 27017,
+	config.get('mongodb.db') || 'account'
+);
+
+var db = mongoose.createConnection(connectStr, options).on('error',
 function(err) {
 	logger.error('mongodb error:', err);
 }).once('open', function() {

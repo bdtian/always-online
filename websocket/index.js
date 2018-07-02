@@ -1,7 +1,6 @@
 var app = require('express')();
 var http = require('http').Server(app);
 var io = require('socket.io')(http);
-var util = require('util');
 var db = require('../database/db');
 var model = require('./model');
 var logger = require('../utils/logger')('always-online-websocket');
@@ -10,6 +9,7 @@ io.logger = logger;
 var auth = require('./io-auth');
 
 var api = require('./api');
+var config = require('config');
 
 // for security, development env igore user auth by default,
 // but can force user auth by set forceUserAuth to true using /admin/system/config api
@@ -74,7 +74,7 @@ var kickout = function(uid, sid) {
         socket.emit('kickout', 0);
 
         //TODO: need set a timeout?
-        socket.disconnect();
+        socket.disconnect(true);
         hasKicked = true;
        }
     }
@@ -106,11 +106,21 @@ var postAuthHandler = function(socket) {
 
   onlineUsers[uid].push({socket: socket});
 
+  // if not join room within 10 secs, disconnect the socket
+  var joinTimeout = config.get('joinTimeOut') || 1000;
+  setTimeout(function() {
+    if (!socket.rid) {
+      logger.warn(
+        "uid: %s, socket.id: %s, does not join a room within %s secs, will disconnect",
+        uid, socket.id, joinTimeout);
+      socket.disconnect(true);
+    }
+  }, joinTimeout);
+
   socket.on('join', function(msg){
     logger.info('recv a join with msg: ', msg);
 
     var roomId = msg.roomId;
-    socket.rid = roomId;
 
     // dummy client can peep the room info.
     var dummy = msg.dummy || false;
@@ -123,6 +133,7 @@ var postAuthHandler = function(socket) {
 
     socket.join(roomId, function() {
       logger.info('join room success, uid: %s, roomId: %s, socketId: %s', uid, roomId, sid);
+      socket.rid = roomId;
 
       if (!(roomId in onlineRooms)) {
         onlineRooms[roomId] = {users: []}
@@ -280,7 +291,7 @@ var postAuthHandler = function(socket) {
 
 // main
 (function main() {
-  auth.registerAuthProcessor(io, authHandler, {timeout: 10000}, postAuthHandler);
+  auth.registerAuthProcessor(io, authHandler, {timeout: config.get('authTimeout')}, postAuthHandler);
   api.regsiter(app);
   
   http.listen(3000, function(){
