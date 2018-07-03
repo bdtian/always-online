@@ -33,8 +33,13 @@ var authHandler = function(socket, data, done) {
   // check for valid credential data
   var uid = data.uid;
   var token = data.token;
-  if (process.env.NODE_ENV === 'development' && !app.runContext.forceUserAuth) {
-    logger.info('[development env] ignore auth, uid: %s, token: %s', uid, token);
+
+  var ignoreUserAuth = false;
+  if(config.has('ignoreUserAuth')) {
+    ignoreUserAuth = config.get('ignoreUserAuth');
+  }
+  if (ignoreUserAuth && !app.runContext.forceUserAuth) {
+    logger.info('ignore auth, uid: %s, token: %s', uid, token);
     socket.uid = uid;
     done();
   } else {
@@ -126,7 +131,7 @@ var postAuthHandler = function(socket) {
     var dummy = msg.dummy || false;
     socket.dummy = dummy;
 
-    if (roomId === '' || roomId == 'undefined') {
+    if (roomId === '' || roomId == undefined) {
        socket.emit('join', {'status': 1, data: 'join failed, require roomId'});
        return;
     }

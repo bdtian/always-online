@@ -52,7 +52,7 @@ module.exports.regsiter = function(app) {
   app.post('/admin/system/config', function(req, res) {
     var data = req.body;
     var configForceUserAuth = data.forceUserAuth;
-    if (configForceUserAuth != 'undefined') {
+    if (configForceUserAuth != undefined) {
       app.runContext.forceUserAuth = configForceUserAuth;
     }
   

@@ -32,6 +32,7 @@ var msgStorageType = {
   2: 'ignore',
 };
 
+// Note: redis key format, msg_{roomId}_{storageType} or msg_{roomId}_{storageType}_backup
 var getRoomMessage = function(roomId, offset, detail, callback) {
   if (typeof(detail) == 'function') {
     callback = detail;

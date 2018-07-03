@@ -1,6 +1,7 @@
 {
   "authTimeout": 10000,
   "joinTimeout": 10000,
+  "ignoreUserAuth": true,
   "redis": {
     "host": "localhost",
     "port": 6379
