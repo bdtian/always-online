@@ -135,8 +135,31 @@ var clearRoomMessage = function(roomId) {
   }
 }
 
+var checkAuthRateLimit = function(uid, cb) {
+  redisClient.select('rate_limit', function() {
+    redisClient.hgetall(uid, function(err, res) {
+      var ts = parseInt(Date.now() / 1000);
+      if (res) {
+        res.limit--;
+        redisClient.hset(uid, 'limit', res.limit);
+        if (res.limit <= 0) {
+          cb(false);
+        } else {
+          cb(true);
+        }
+      } else {
+        redisClient.hset(uid, 'ts', ts);
+        redisClient.hset(uid, 'limit', config.get('authRateLimit') || 30);
+        redisClient.expire(uid, 60);
+        cb(true);
+      }
+    });
+  });
+}
+
 module.exports = {
   getRoomMessage: getRoomMessage,
   saveRoomMessage: saveRoomMessage,
-  clearRoomMessage: clearRoomMessage
+  clearRoomMessage: clearRoomMessage,
+  checkAuthRateLimit: checkAuthRateLimit
 }

@@ -38,27 +38,35 @@ var authHandler = function(socket, data, done) {
   if(config.has('ignoreUserAuth')) {
     ignoreUserAuth = config.get('ignoreUserAuth');
   }
-  if (ignoreUserAuth && !app.runContext.forceUserAuth) {
-    logger.info('ignore auth, uid: %s, token: %s', uid, token);
-    socket.uid = uid;
-    done();
-  } else {
-    db.user.findOne({uid: uid, token: token}, function(err, ret) {
-      if (err) {
-          logger.warn('auth error, uid: %s, token: %s, err: ', uid, token, err);
-          done(new Error('server error'));
-      } else {
-        if (ret) {
-          logger.info('auth success, uid: %s, token: %s', uid, token);
-          socket.uid = uid;
-          done();
-        } else {
-          logger.warn('auth failed, uid: %s, token: %s', uid, token);
-          done(new Error('auth failed, uid or token is wrong'));
-        }
+
+  db.user.findOne({uid: uid, token: token}, function(err, ret) {
+    if (err) {
+        logger.warn('auth error, uid: %s, token: %s, err: ', uid, token, err);
+        done(new Error('server error'));
+    } else {
+      if (ignoreUserAuth && !app.runContext.forceUserAuth) {
+        logger.info('ignore auth, uid: %s, token: %s', uid, token);
+        ret = {uid: uid, token: token};
       }
-    });
-  }
+
+      if (ret) {
+        logger.info('auth success, uid: %s, token: %s', uid, token);
+        socket.uid = uid;
+
+        // check rate limit
+        model.checkAuthRateLimit(uid, function(ret) {
+          if (ret) {
+            done();
+          } else {
+            done(new Error('reach rate limit'));
+          }
+        })
+      } else {
+        logger.warn('auth failed, uid: %s, token: %s', uid, token);
+        done(new Error('auth failed, uid or token is wrong'));
+      }
+    }
+  });
 };
 
 var kickout = function(uid, sid) {

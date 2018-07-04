@@ -27,6 +27,9 @@ module.exports.registerAuthProcessor = function(io, authhandler, options, callba
       if (error instanceof Error) {
         error = error.message;
       }
+
+      logger.warn('auth error, %s', error);
+
       socket.emit('authenticate', {status: 1, data: error});
       return socket.disconnect(true);
     };
@@ -34,7 +37,7 @@ module.exports.registerAuthProcessor = function(io, authhandler, options, callba
     timeout(options.timeout, function() {
       if (!socket.authenticated) {
         logger.warn(
-          "socket.id: %s, does not auth within %s secs, will disconnect",
+          "socket.id: %s, does not auth within %s ms, will disconnect",
           socket.id, options.timeout);
         return disconnect('authentication timeout');
       }
@@ -45,7 +48,6 @@ module.exports.registerAuthProcessor = function(io, authhandler, options, callba
     return socket.on('authenticate', function(data) {
       return authhandler(socket, data, function(error) {
         if (error != null) {
-          logger.warn('auth error, %s', JSON.stringify(data));
           return disconnect(error);
         } else {
           socket.authenticated = true;
