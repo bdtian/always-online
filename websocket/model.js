@@ -108,7 +108,7 @@ var saveRoomMessage = function(roomId, uid, msg) {
   var msgRoomKey = util.format('msg_%s_%s', roomId, msgStorageTypeValue);
 
   var ts = parseInt(Date.now() / 1000);
-  var content = JSON.stringify({data: msg, ts: ts, '2': uid});
+  var content = JSON.stringify({data: msg, ts: ts});
   if (msgStorageTypeValue == 'insert') {
     // list insert
     redisClient.rpush(msgRoomKey, content);

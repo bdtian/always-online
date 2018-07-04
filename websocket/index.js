@@ -206,7 +206,10 @@ var postAuthHandler = function(socket) {
       );
       return;
     }
-    msg.uid = socket.uid;
+
+    // 2 stands for uid
+    msg[2] = socket.uid;
+
     logger.debug(
       'recv a msg, uid: %s, socket.id: %s, roomId: %s, msg size: %s bytes',
       socket.uid,
