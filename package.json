@@ -10,6 +10,7 @@
     "socket.io-redis": "^5.2.0",
     "util": "^0.11.0",
     "mongoose": "^5.1.6",
-    "config": "^1.30.0"
+    "config": "^1.30.0",
+    "zlib": "^1.0.5"
   }
 }

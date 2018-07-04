@@ -5,6 +5,7 @@ var db = require('../database/db');
 var model = require('./model');
 var logger = require('../utils/logger')('always-online-websocket');
 io.logger = logger;
+const zlib = require('zlib');
 
 var auth = require('./io-auth');
 
@@ -245,13 +246,24 @@ var postAuthHandler = function(socket) {
     }
 
     model.getRoomMessage(socket.rid, offset, function(content) {
-      logger.debug(
-        'send sync resp to uid: %s, msg size: %d bytes, msg count: %d',
-        socket.uid,
-        JSON.stringify(content).length,
-        content.data.length
-      );
-      socket.emit('sync', content);
+      var data = JSON.stringify(content.data);
+      zlib.deflate(data, (err, buffer) => {
+        if (!err) {
+          var compressedData = buffer.toString('base64');
+          logger.debug(
+            'send sync resp to uid: %s, msg zip size: %d bytes, origin size: %s bytes, msg count: %d',
+            socket.uid,
+            compressedData.length,
+            data.length,
+            content.data.length
+          );
+          content.data = compressedData;
+          socket.emit('sync', content);
+        } else {
+            // handle error
+            logger.debug('send sync resp to uid: %s, compressed failed');
+        }
+      });
     });
   });
 
