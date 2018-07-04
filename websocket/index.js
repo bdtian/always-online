@@ -232,6 +232,7 @@ var postAuthHandler = function(socket) {
 
   socket.on('sync', function(msg) {
     var offset = msg.offset || 0;
+    var encoding = msg.encoding;
 
     logger.info(
       'recv sync request, uid: %s, socket.id: %s, roomId: %s',
@@ -245,25 +246,38 @@ var postAuthHandler = function(socket) {
       socket.to(socket.rid).emit('remote_sync', {uid: socket.uid});
     }
 
-    model.getRoomMessage(socket.rid, offset, function(content) {
+    model.getRoomMessage(socket.rid, offset, (content) => {
       var data = JSON.stringify(content.data);
-      zlib.deflate(data, (err, buffer) => {
-        if (!err) {
-          var compressedData = buffer.toString('base64');
-          logger.debug(
-            'send sync resp to uid: %s, msg zip size: %d bytes, origin size: %s bytes, msg count: %d',
-            socket.uid,
-            compressedData.length,
-            data.length,
-            content.data.length
-          );
-          content.data = compressedData;
-          socket.emit('sync', content);
-        } else {
-            // handle error
-            logger.debug('send sync resp to uid: %s, compressed failed');
-        }
-      });
+      if (encoding == 'gzip') {
+        zlib.gzip(data, (err, buffer) => {
+          if (!err) {
+            var compressedData = buffer.toString('base64');
+            logger.debug(
+              'send sync resp to uid: %s, msg zip size: %d bytes, origin size: %s bytes, msg count: %d',
+              socket.uid,
+              compressedData.length,
+              data.length,
+              content.data.length
+            );
+            content.data = compressedData;
+            content.encoding = 'gzip';
+            socket.emit('sync', content);
+          } else {
+              // handle error
+              logger.debug('send sync resp to uid: %s, compressed failed');
+          }
+        });
+      } else {
+        logger.debug(
+          'send sync resp to uid: %s, msg zip size: %d bytes, origin size: %s bytes, msg count: %d',
+          socket.uid,
+          data.length,
+          data.length,
+          content.data.length
+        );
+
+        socket.emit('sync', content);
+      }
     });
   });
 
