@@ -115,8 +115,8 @@ Status Code
 * sync
 
 	```
-	Request: {offset: 0}
-	Response: {next: 1, offset: 500, data: []}
+	Request: {offset: 0, encoding: 'gzip'}
+	Response: {next: 1, offset: 500, data: [], encoding: 'gzip'}
 	next:
 		0: no data to get
 		1: has more data, need do sync with offset again until next is 0
