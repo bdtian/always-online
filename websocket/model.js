@@ -98,17 +98,17 @@ var getRoomMessage = function(roomId, offset, detail, callback) {
 }
 
 var saveRoomMessage = function(roomId, uid, msg) {
-  if (!(msg.storage in msgStorageType)) {
+  if (!(msg.s in msgStorageType)) {
     // default to insert
-    msg.storage = 0;
+    msg.s = 0;
   }
 
   var msgId = msg.msgId;
-  var msgStorageTypeValue = msgStorageType[msg.storage];
+  var msgStorageTypeValue = msgStorageType[msg.s];
   var msgRoomKey = util.format('msg_%s_%s', roomId, msgStorageTypeValue);
 
   var ts = parseInt(Date.now() / 1000);
-  var content = JSON.stringify({data: msg, ts: ts, uid: uid});
+  var content = JSON.stringify({data: msg, ts: ts, '2': uid});
   if (msgStorageTypeValue == 'insert') {
     // list insert
     redisClient.rpush(msgRoomKey, content);
