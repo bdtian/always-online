@@ -238,7 +238,13 @@ var postAuthHandler = function(socket) {
   });
 
   socket.on('sync', function(msg) {
-    var offset = msg.offset || 0;
+    var offset = msg.offset;
+    if (typeof(offset) != Number) {
+      offset = parseInt(offset);
+    }
+
+    offset = offset || 0;
+
     var encoding = msg.encoding;
 
     logger.info(

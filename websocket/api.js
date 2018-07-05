@@ -128,7 +128,13 @@ module.exports.regsiter = function(app) {
   
   app.get('/admin/monitor/room_msgs', function(req, res) {
     var roomId = req.query['roomId'];
-    var offset = req.query['offset'] || 0;
+    var offset = req.query['offset'];
+    if (typeof(offset) != Number) {
+      offset = parseInt(offset);
+    }
+
+    offset = offset || 0;
+
     if (roomId && roomId != '') {
       model.getRoomMessage(roomId, offset, true, function(msgs) {
         logger.debug(
