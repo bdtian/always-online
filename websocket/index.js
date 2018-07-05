@@ -261,7 +261,6 @@ var postAuthHandler = function(socket) {
             );
             content.data = compressedData;
             content.encoding = 'gzip';
-            logger.debug("sync data", content);
             socket.emit('sync', content);
           } else {
               // handle error
