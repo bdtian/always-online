@@ -216,18 +216,25 @@ var postAuthHandler = function(socket) {
       return;
     }
 
-    // 2 stands for uid
-    msg[2] = socket.uid;
+    var msgSize = JSON.stringify(msg).length;
+    var maxMsgSize = (config.get('maxMsgSize') || 500) * 1024;
 
     logger.debug(
-      'recv a msg, uid: %s, socket.id: %s, roomId: %s, msg size: %s bytes',
+      'recv a msg, uid: %s, socket.id: %s, roomId: %s, msg size: %s bytes, reach max size: %s, max size: %d bytes',
       socket.uid,
       socket.id,
       socket.rid,
-      JSON.stringify(msg).length
+      msgSize,
+      msgSize > maxMsgSize,
+      maxMsgSize
     );
-    model.saveRoomMessage(socket.rid, socket.uid, msg);
-    socket.to(socket.rid).emit('msg', msg);
+
+    if (msgSize <= maxMsgSize) {
+      // 2 stands for uid
+      msg[2] = socket.uid;
+      model.saveRoomMessage(socket.rid, socket.uid, msg);
+      socket.to(socket.rid).emit('msg', msg);
+    }
   });
 
   socket.on('sync', function(msg) {
