@@ -103,7 +103,8 @@ var saveRoomMessage = function(roomId, uid, msg) {
     msg.s = 0;
   }
 
-  var msgId = msg.msgId;
+  // 1 stands for msgId
+  var msgId = msg[1];
   var msgStorageTypeValue = msgStorageType[msg.s];
   var msgRoomKey = util.format('msg_%s_%s', roomId, msgStorageTypeValue);
 
